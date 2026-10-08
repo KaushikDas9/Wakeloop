@@ -204,6 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refresh() {
         // Sampled outside the lock: spawning ps is the slowest part of a refresh.
         let busyChildren = ProcessTree.busyAgentDescendants(ProcessTree.snapshot())
+        let transcripts = SessionFiles.recentlyActive(SessionFiles.scan())
         lock.lock()
         let manual = manualUntil.map { $0 > Date() } ?? false
         let paused = pausedUntil.map { $0 > Date() } ?? false
@@ -215,10 +216,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .on: wantsHold = true; reason = "Always on"
         case .auto:
             let hooked = manual || tracker.shouldHold()
-            wantsHold = hooked || !busyChildren.isEmpty
+            wantsHold = hooked || !busyChildren.isEmpty || !transcripts.isEmpty
             reason = manual ? "Manual hold" : tracker.reason()
             if !hooked, let top = busyChildren.max(by: { $0.cpu < $1.cpu }) {
                 reason = "Background work: \(top.name) running under an agent"
+            } else if !hooked, !transcripts.isEmpty {
+                reason = "Agent transcript was just written to"
             }
         }
         if paused, let until = pausedUntil {

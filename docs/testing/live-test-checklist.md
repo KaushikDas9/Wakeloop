@@ -45,3 +45,8 @@ Nothing below has been run yet. Tick as you go and note the macOS version and Ma
 - [ ] Window shows sessions, busy processes and assertions
 - [ ] Launch at login works from the bundle (may need approval in Login Items)
 - [ ] Notifications appear from the bundle
+
+## Session-file fallback
+- [ ] With hooks removed, a working Claude Code or Codex session still holds the Mac awake (status: "Agent transcript was just written to")
+- [ ] After the agent stops, the hold releases within about 20-25 seconds
+- [ ] Check the scan does not use noticeable CPU with many projects in `~/.claude/projects`
