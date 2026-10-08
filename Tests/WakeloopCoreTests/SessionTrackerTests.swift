@@ -37,6 +37,16 @@ struct SessionTrackerTests {
         #expect(p?.event == .needsInput)
     }
 
+    @Test func quotaAutoResumeNotifications() {
+        func event(_ type: String) -> AgentEvent? {
+            HookPayload.parse(Data(#"{"hook_event_name":"Notification","session_id":"q1","notification_type":"\#(type)"}"#.utf8))?.event
+        }
+        #expect(event("quota_auto_resume_fired") == .promptSubmit)
+        #expect(event("quota_auto_resume_stale") == .stop)
+        #expect(event("quota_auto_resume_disabled") == .stop)
+        #expect(event("auth_success") == .other)
+    }
+
     @Test func codexEventsParse() {
         func event(_ name: String) -> AgentEvent? {
             HookPayload.parse(Data(#"{"hook_event_name":"\#(name)","session_id":"c1"}"#.utf8))?.event
