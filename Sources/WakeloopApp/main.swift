@@ -201,6 +201,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refresh()
     }
 
+    private func setStatusTitle(hold: Bool, workingCount: Int) {
+        let size = NSFont.menuBarFont(ofSize: 0).pointSize
+        let regular = NSFont.systemFont(ofSize: size)
+        let bold = NSFont.boldSystemFont(ofSize: size)
+        let title = NSMutableAttributedString(string: hold ? "● " : "○ ", attributes: [.font: regular])
+        if hold && workingCount > 0 {
+            title.append(NSAttributedString(string: "\(workingCount)", attributes: [.font: bold]))
+            title.append(NSAttributedString(string: " ", attributes: [.font: regular]))
+        }
+        title.append(NSAttributedString(string: "Wakeloop", attributes: [.font: regular]))
+        statusItem.button?.attributedTitle = title
+    }
+
     private func refresh() {
         // Sampled outside the lock: spawning ps is the slowest part of a refresh.
         let busyChildren = ProcessTree.busyAgentDescendants(ProcessTree.snapshot())
@@ -211,6 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !paused { pausedUntil = nil }
         let wantsHold: Bool
         var reason: String
+        let workingCount = tracker.workingCount
         switch mode {
         case .off: wantsHold = false; reason = "Wakeloop is off"
         case .on: wantsHold = true; reason = "Always on"
@@ -244,7 +258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         power.setHold(hold)
         applyLid(wanted: hold && lidEnabled)
-        statusItem.button?.title = hold ? "● Wakeloop" : "○ Wakeloop"
+        setStatusTitle(hold: hold, workingCount: workingCount)
 
         let menu = NSMenu()
         menu.addItem(withTitle: hold ? "Awake: \(reason)" : "Sleep allowed: \(reason)", action: nil, keyEquivalent: "")

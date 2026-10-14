@@ -75,3 +75,16 @@ struct SafetyGuardTests {
         #expect(g.evaluate(PowerStatus(batteryPercent: nil, onAC: true, thermalHot: true)) == .tooHot)
     }
 }
+
+struct WorkingCountTests {
+    @Test func countsOnlyWorkingSessions() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a")
+        t.apply(.promptSubmit, session: "b")
+        t.apply(.sessionStart, session: "c")
+        t.apply(.needsInput, session: "d")
+        #expect(t.workingCount == 2)
+        t.apply(.stop, session: "a")
+        #expect(t.workingCount == 1)
+    }
+}

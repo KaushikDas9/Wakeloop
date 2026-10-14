@@ -41,9 +41,12 @@ public struct SessionTracker {
         }
     }
 
+    /// Sessions currently between a prompt and its Stop.
+    public var workingCount: Int { sessions.values.filter { $0 == .working }.count }
+
     /// Human-readable reason, for the future "why is my Mac awake" panel.
     public func reason(at now: Date = Date()) -> String {
-        let working = sessions.values.filter { $0 == .working }.count
+        let working = workingCount
         if working > 0 { return "\(working) agent session(s) working" }
         if shouldHold(at: now) { return "Waiting for you (grace period)" }
         return "No active work"
