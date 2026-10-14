@@ -88,3 +88,52 @@ struct WorkingCountTests {
         #expect(t.workingCount == 1)
     }
 }
+
+struct WorkingNamesTests {
+    @Test func namesComeFromCwdAndOnlyListWorkingSessions() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", cwd: "/Users/x/Product/Wakeloop")
+        t.apply(.promptSubmit, session: "b", cwd: "/Users/x/Product/Breakout")
+        t.apply(.promptSubmit, session: "c")
+        t.apply(.sessionStart, session: "d", cwd: "/Users/x/idle-project")
+        #expect(t.workingNames == ["Breakout", "Wakeloop", "c"])
+        t.apply(.stop, session: "a")
+        t.apply(.sessionEnd, session: "b")
+        #expect(t.workingNames == ["c"])
+    }
+    @Test func payloadCarriesCwd() {
+        let p = HookPayload.parse(Data(#"{"hook_event_name":"UserPromptSubmit","session_id":"s","cwd":"/a/b"}"#.utf8))
+        #expect(p?.cwd == "/a/b")
+    }
+}
+
+struct SubagentTests {
+    @Test func subagentsHoldAfterParentStopsAndAreLabelled() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", cwd: "/x/Wakeloop")
+        t.apply(.subagentStart(id: "1", type: "Explore"), session: "a")
+        t.apply(.subagentStart(id: "2", type: "Plan"), session: "a")
+        t.apply(.stop, session: "a")
+        #expect(t.shouldHold())
+        #expect(t.workingCount == 2)
+        #expect(t.workingNames == ["Wakeloop > subagent (Explore)", "Wakeloop > subagent (Plan)"])
+        t.apply(.subagentStop(id: "1"), session: "a")
+        t.apply(.subagentStop(id: "2"), session: "a")
+        #expect(!t.shouldHold())
+        #expect(t.workingCount == 0)
+    }
+    @Test func staleSubagentsExpireAndSessionEndClears() {
+        var t = SessionTracker()
+        t.apply(.subagentStart(id: "1", type: "x"), session: "a", at: Date(timeIntervalSinceNow: -7200))
+        #expect(!t.shouldHold())
+        t.apply(.subagentStart(id: "2", type: "x"), session: "b")
+        t.apply(.sessionEnd, session: "b")
+        #expect(!t.shouldHold())
+    }
+    @Test func parsesSubagentHooks() {
+        let s = HookPayload.parse(Data(#"{"hook_event_name":"SubagentStart","session_id":"s","agent_id":"i1","agent_type":"Explore"}"#.utf8))
+        #expect(s?.event == .subagentStart(id: "i1", type: "Explore"))
+        let e = HookPayload.parse(Data(#"{"hook_event_name":"SubagentStop","session_id":"s","agent_id":"i1"}"#.utf8))
+        #expect(e?.event == .subagentStop(id: "i1"))
+    }
+}

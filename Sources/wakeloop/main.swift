@@ -44,7 +44,7 @@ case "hook-snippet":
     guard args.count > 1, ["claude", "codex"].contains(args[1]) else { print("usage: wakeloop hook-snippet claude|codex"); exit(2) }
     // Codex has no Notification event but has Interrupt; Claude Code is the reverse.
     let events = ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "SessionEnd"]
-        + (args[1] == "codex" ? ["Interrupt"] : ["Notification"])
+        + (args[1] == "codex" ? ["Interrupt"] : ["Notification", "SubagentStart", "SubagentStop"])
     let entries = events.map { "    \"\($0)\": [{ \"hooks\": [{ \"type\": \"command\", \"command\": \"\(cmd)\", \"timeout\": 5 }] }]" }
     print("{\n  \"hooks\": {\n" + entries.joined(separator: ",\n") + "\n  }\n}")
 default:

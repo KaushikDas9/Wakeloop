@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handle(_ msg: HookServer.Message) {
         lock.lock()
         switch msg {
-        case .event(let session, let event): tracker.apply(event, session: session)
+        case .event(let session, let event, let cwd): tracker.apply(event, session: session, cwd: cwd)
         case .hold(let secs): manualUntil = Date().addingTimeInterval(secs)
         case .done: manualUntil = nil
         }
@@ -225,6 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let wantsHold: Bool
         var reason: String
         let workingCount = tracker.workingCount
+        let workingNames = tracker.workingNames
         switch mode {
         case .off: wantsHold = false; reason = "Wakeloop is off"
         case .on: wantsHold = true; reason = "Always on"
@@ -262,6 +263,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.addItem(withTitle: hold ? "Awake: \(reason)" : "Sleep allowed: \(reason)", action: nil, keyEquivalent: "")
+        if !workingNames.isEmpty {
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Working now (\(workingNames.count))", action: nil, keyEquivalent: "")
+            for name in workingNames { menu.addItem(withTitle: "   \(name)", action: nil, keyEquivalent: "") }
+            menu.addItem(.separator())
+        }
         let why = NSMenuItem(title: "Why is my Mac awake…", action: #selector(showWhy), keyEquivalent: "")
         why.target = self
         menu.addItem(why)

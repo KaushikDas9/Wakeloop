@@ -6,7 +6,7 @@ public let wakeloopPort: UInt16 = 47821
 /// Minimal localhost HTTP listener. POST /event takes hook JSON; POST /hold?seconds=N and POST /done drive the CLI.
 public final class HookServer {
     public enum Message {
-        case event(session: String, AgentEvent)
+        case event(session: String, AgentEvent, cwd: String?)
         case hold(seconds: TimeInterval)
         case done
     }
@@ -68,7 +68,7 @@ public final class HookServer {
         } else if path.hasPrefix("/event"),
                   let sep = text.range(of: "\r\n\r\n"),
                   let parsed = HookPayload.parse(Data(text[sep.upperBound...].utf8)) {
-            handler(.event(session: parsed.session, parsed.event))
+            handler(.event(session: parsed.session, parsed.event, cwd: parsed.cwd))
         }
     }
 }
