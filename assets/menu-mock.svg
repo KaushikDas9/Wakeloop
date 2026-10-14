@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 470" width="420" height="470" role="img" aria-label="Illustration of the Wakeloop menu bar dropdown with three working agents">
+  <!-- Menu bar strip -->
+  <rect x="0" y="0" width="420" height="30" rx="8" fill="#1c1d21"/>
+  <text x="330" y="20" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#f4f4f5">● 3 Wakeloop</text>
+
+  <!-- Dropdown panel -->
+  <rect x="0" y="30" width="420" height="440" rx="10" fill="#2b2d33"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="14" fill="#e4e4e7">
+    <text x="16" y="60" font-size="12" fill="#a1a1aa" font-weight="600">Working now (3)</text>
+
+    <text x="16" y="88" font-weight="600">▾ Wakeloop <tspan fill="#a1a1aa" font-weight="400">(working, 2 subagents)</tspan></text>
+    <text x="40" y="112" fill="#d4d4d8">├ Explore</text>
+    <text x="40" y="136" fill="#d4d4d8">└ Plan</text>
+
+    <text x="16" y="168" font-weight="600">GameDealRader <tspan fill="#a1a1aa" font-weight="400">(working)</tspan></text>
+
+    <line x1="12" y1="186" x2="408" y2="186" stroke="#44464e" stroke-width="1"/>
+
+    <text x="16" y="212">Mode: Auto</text>
+    <text x="16" y="240">Pause for 30 minutes</text>
+    <text x="16" y="268">Pause for 1 hour</text>
+    <text x="16" y="296">Pause until tomorrow</text>
+
+    <line x1="12" y1="314" x2="408" y2="314" stroke="#44464e" stroke-width="1"/>
+
+    <text x="16" y="342">Why is my Mac awake</text>
+
+    <line x1="12" y1="388" x2="408" y2="388" stroke="#44464e" stroke-width="1"/>
+
+    <text x="16" y="416">Quit Wakeloop</text>
+  </g>
+  <text x="210" y="458" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="11" fill="#a1a1aa" text-anchor="middle">Illustration, not a screenshot</text>
+</svg>
