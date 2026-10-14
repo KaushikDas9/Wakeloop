@@ -70,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handle(_ msg: HookServer.Message) {
         lock.lock()
         switch msg {
-        case .event(let session, let event, let cwd): tracker.apply(event, session: session, cwd: cwd)
+        case .event(let session, let event, let cwd, let transcript): tracker.apply(event, session: session, cwd: cwd, transcript: transcript)
         case .hold(let secs): manualUntil = Date().addingTimeInterval(secs)
         case .done: manualUntil = nil
         }
@@ -321,6 +321,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let busyChildren = ProcessTree.busyAgentDescendants(ProcessTree.snapshot())
         let transcripts = SessionFiles.recentlyActive(SessionFiles.scan())
         lock.lock()
+        tracker.pruneStaleSubagents { path in
+            (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+        }
         let manual = manualUntil.map { $0 > Date() } ?? false
         let paused = pausedUntil.map { $0 > Date() } ?? false
         if !paused { pausedUntil = nil }

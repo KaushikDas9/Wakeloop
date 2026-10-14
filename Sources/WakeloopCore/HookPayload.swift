@@ -2,12 +2,12 @@ import Foundation
 
 /// Parses Claude Code hook JSON (HTTP hook body). Re-verify against current hooks docs: formats change.
 public enum HookPayload {
-    public static func parse(_ data: Data) -> (session: String, event: AgentEvent, cwd: String?)? {
+    public static func parse(_ data: Data) -> (session: String, event: AgentEvent, cwd: String?, transcript: String?)? {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let name = obj["hook_event_name"] as? String else { return nil }
         let session = (obj["session_id"] as? String) ?? "unknown"
         let cwd = obj["cwd"] as? String
-        return (session, classify(name, obj), cwd)
+        return (session, classify(name, obj), cwd, obj["transcript_path"] as? String)
     }
 
     private static func classify(_ name: String, _ obj: [String: Any]) -> AgentEvent {

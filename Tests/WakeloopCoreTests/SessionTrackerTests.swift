@@ -237,3 +237,31 @@ struct LidGuardTests {
         #expect(r9)
     }
 }
+
+struct StaleSubagentTests {
+    private let transcript = "/p/proj/sess-1.jsonl"
+
+    @Test func killedSubagentIsDroppedOnceItsTranscriptGoesQuiet() {
+        var t = SessionTracker()
+        let now = Date()
+        t.apply(.promptSubmit, session: "sess-1", cwd: "/x/Wakeloop", transcript: transcript)
+        t.apply(.subagentStart(id: "dead", type: "general-purpose"), session: "sess-1")
+        t.apply(.subagentStart(id: "live", type: "Explore"), session: "sess-1")
+        var asked: [String] = []
+        t.pruneStaleSubagents(staleAfter: 180, at: now) { path in
+            asked.append(path)
+            return path.hasSuffix("agent-dead.jsonl") ? now.addingTimeInterval(-600) : now.addingTimeInterval(-5)
+        }
+        #expect(asked.contains("/p/proj/sess-1/subagents/agent-dead.jsonl"))
+        #expect(t.subagents["sess-1"]?.keys.sorted() == ["live"])
+    }
+
+    @Test func missingTranscriptOrUnknownPathKeepsTheSubagent() {
+        var t = SessionTracker()
+        t.apply(.subagentStart(id: "a", type: "x"), session: "no-path")
+        t.apply(.subagentStart(id: "b", type: "x"), session: "s2", transcript: transcript)
+        t.pruneStaleSubagents { _ in nil }
+        #expect(t.subagents["no-path"]?.count == 1)
+        #expect(t.subagents["s2"]?.count == 1)
+    }
+}

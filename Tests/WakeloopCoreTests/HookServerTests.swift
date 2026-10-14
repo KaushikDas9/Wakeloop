@@ -35,7 +35,7 @@ struct HookServerTests {
         let got = box.messages
         #expect(got.count == 3)
         guard got.count == 3 else { return }
-        if case .event(let s, let e, _) = got[0] { #expect(s == "s9"); #expect(e == .promptSubmit) } else { Issue.record("expected event") }
+        if case .event(let s, let e, _, _) = got[0] { #expect(s == "s9"); #expect(e == .promptSubmit) } else { Issue.record("expected event") }
         if case .hold(let secs) = got[1] { #expect(secs == 90) } else { Issue.record("expected hold") }
         if case .done = got[2] {} else { Issue.record("expected done") }
     }

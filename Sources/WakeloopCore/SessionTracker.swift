@@ -35,6 +35,7 @@ public struct SessionTracker {
     public var gracePeriod: TimeInterval
     public private(set) var sessions: [String: AgentState] = [:]
     public private(set) var names: [String: String] = [:]
+    private var transcripts: [String: String] = [:]
     /// Running sub-agents per session: agent id -> (type, started). They keep working after the parent's Stop.
     public private(set) var subagents: [String: [String: (type: String, since: Date)]] = [:]
     /// A SubagentStop that never arrives must not hold the Mac awake forever.
@@ -44,18 +45,38 @@ public struct SessionTracker {
         self.gracePeriod = gracePeriod
     }
 
-    public mutating func apply(_ event: AgentEvent, session: String, cwd: String? = nil, at now: Date = Date()) {
+    public mutating func apply(_ event: AgentEvent, session: String, cwd: String? = nil, transcript: String? = nil, at now: Date = Date()) {
+        if let transcript, !transcript.isEmpty { transcripts[session] = transcript }
         if let cwd, !cwd.isEmpty { names[session] = (cwd as NSString).lastPathComponent }
         switch event {
         case .sessionStart, .stop: sessions[session] = .idle
         case .promptSubmit: sessions[session] = .working
         case .needsInput: sessions[session] = .waiting(since: now)
-        case .sessionEnd: sessions[session] = nil; names[session] = nil; subagents[session] = nil
+        case .sessionEnd: sessions[session] = nil; names[session] = nil; subagents[session] = nil; transcripts[session] = nil
         case .subagentStart(let id, let type): subagents[session, default: [:]][id] = (type, now)
         case .subagentStop(let id):
             subagents[session]?[id] = nil
             if subagents[session]?.isEmpty == true { subagents[session] = nil }
         case .other: break
+        }
+    }
+
+    /// Where Claude Code writes a sub-agent's transcript: next to the session transcript, under `<session>/subagents/`.
+    func subagentTranscript(session: String, id: String) -> String? {
+        guard let t = transcripts[session], t.hasSuffix(".jsonl") else { return nil }
+        return String(t.dropLast(".jsonl".count)) + "/subagents/agent-\(id).jsonl"
+    }
+
+    /// Drops sub-agents whose transcript has not been written for `staleAfter` seconds. A killed sub-agent never
+    /// sends SubagentStop. A missing file keeps the agent (the 1 hour expiry still applies).
+    public mutating func pruneStaleSubagents(staleAfter: TimeInterval = 180, at now: Date = Date(), lastWrite: (String) -> Date?) {
+        for (session, agents) in subagents {
+            for id in agents.keys {
+                guard let path = subagentTranscript(session: session, id: id), let written = lastWrite(path),
+                      now.timeIntervalSince(written) > staleAfter else { continue }
+                subagents[session]?[id] = nil
+            }
+            if subagents[session]?.isEmpty == true { subagents[session] = nil }
         }
     }
 
