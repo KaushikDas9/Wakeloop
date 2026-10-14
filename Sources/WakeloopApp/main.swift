@@ -70,7 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handle(_ msg: HookServer.Message) {
         lock.lock()
         switch msg {
-        case .event(let session, let event, let cwd, let transcript): tracker.apply(event, session: session, cwd: cwd, transcript: transcript)
+        case .event(let session, let event, let cwd, let transcript):
+            tracker.apply(event, session: session, cwd: cwd, transcript: transcript)
         case .hold(let secs): manualUntil = Date().addingTimeInterval(secs)
         case .done: manualUntil = nil
         }
@@ -238,6 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func whyReport() -> String {
         lock.lock()
         let sessions = tracker.sessions
+        let subagents = tracker.subagents
         let verdict = safety.evaluate(SystemPower.read())
         let holding = power.isHolding
         let paused = pausedUntil.map { $0 > Date() } ?? false
@@ -248,7 +250,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         out += "Lid-closed: \(lidEnabled ? (lid.isActive ? "on, active" : "on, idle") : "off")\nMode: \(mode.rawValue)   Paused: \(paused)   Manual hold: \(manual)   Grace: \(graceMinutes) min\n"
         out += "Battery: \(power.batteryPercent.map { "\($0)%" } ?? "none")  AC: \(power.onAC)  Hot: \(power.thermalHot)  Guard: \(verdict)\n\n"
         out += "Agent sessions (\(sessions.count)):\n"
-        for (id, state) in sessions.sorted(by: { $0.key < $1.key }) { out += "  \(id.prefix(12))  \(state)\n" }
+        for (id, state) in sessions.sorted(by: { $0.key < $1.key }) {
+            let subs = subagents[id].map { $0.values.map(\.type).sorted() } ?? []
+            out += "  \(id.prefix(12))  \(state)" + (subs.isEmpty ? "" : "  + \(subs.count) subagent(s): \(subs.joined(separator: ", "))") + "\n"
+        }
+        // Sub-agents of a session that never reported its own state (e.g. hooks loaded mid-run).
+        for (id, agents) in subagents.sorted(by: { $0.key < $1.key }) where sessions[id] == nil {
+            out += "  \(id.prefix(12))  (no session state)  + \(agents.count) subagent(s): \(agents.values.map(\.type).sorted().joined(separator: ", "))\n"
+        }
         if sessions.isEmpty { out += "  none reported by hooks\n" }
         let busy = ProcessTree.busyAgentDescendants(ProcessTree.snapshot())
         out += "\nBusy processes under agents (\(busy.count)):\n"
