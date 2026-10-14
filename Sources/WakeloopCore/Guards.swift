@@ -39,6 +39,28 @@ public struct SafetyGuard {
     }
 }
 
+/// Extra rule for lid-closed mode, the riskiest case: charger only, unless the user allows battery, and then
+/// only above a higher floor than the general battery guard.
+public struct LidGuard {
+    public var batteryFloor: Int
+    public var batteryResume: Int
+    private var tripped = false
+
+    public init(batteryFloor: Int = 30, batteryResume: Int = 35) {
+        self.batteryFloor = batteryFloor
+        self.batteryResume = batteryResume
+    }
+
+    /// True when lid-closed mode may stay on.
+    public mutating func allows(_ s: PowerStatus, batteryAllowed: Bool) -> Bool {
+        guard !s.onAC, let level = s.batteryPercent else { tripped = false; return true }
+        guard batteryAllowed else { return false }
+        if level <= batteryFloor { tripped = true }
+        else if tripped && level >= batteryResume { tripped = false }
+        return !tripped
+    }
+}
+
 public enum SystemPower {
     public static func read() -> PowerStatus {
         var percent: Int?

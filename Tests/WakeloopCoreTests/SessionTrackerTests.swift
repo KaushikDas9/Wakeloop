@@ -137,3 +137,103 @@ struct SubagentTests {
         #expect(e?.event == .subagentStop(id: "i1"))
     }
 }
+
+struct WorkerGroupTests {
+    let t0 = Date(timeIntervalSince1970: 1_000_000)
+
+    @Test func subagentsOfOneProjectShareOneGroup() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", cwd: "/x/Wakeloop", at: t0)
+        for (i, type) in ["Explore", "Plan", "Bash", "general"].enumerated() {
+            t.apply(.subagentStart(id: "\(i)", type: type), session: "a", at: t0)
+        }
+        #expect(t.groups(at: t0) == [WorkerGroup(project: "Wakeloop", mainWorking: true, subagents: ["Bash", "Explore", "Plan", "general"], subagentTotal: 4)])
+    }
+    @Test func sessionsInSameFolderMerge() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", cwd: "/x/Wakeloop", at: t0)
+        t.apply(.stop, session: "b", cwd: "/y/Wakeloop", at: t0)
+        t.apply(.subagentStart(id: "1", type: "Plan"), session: "b", at: t0)
+        #expect(t.groups(at: t0) == [WorkerGroup(project: "Wakeloop", mainWorking: true, subagents: ["Plan"], subagentTotal: 1)])
+    }
+    @Test func groupsSortedByProjectAndIdleSessionsExcluded() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", cwd: "/x/Zeta", at: t0)
+        t.apply(.sessionStart, session: "b", cwd: "/x/Alpha", at: t0)
+        t.apply(.subagentStart(id: "1", type: "Explore"), session: "c", cwd: "/x/Mid", at: t0)
+        #expect(t.groups(at: t0).map(\.project) == ["Mid", "Zeta"])
+        #expect(t.groups(at: t0).map(\.mainWorking) == [false, true])
+    }
+    @Test func duplicateSubagentTypesCollapse() {
+        var t = SessionTracker()
+        for (i, type) in ["Explore", "Explore", "Plan", "Explore"].enumerated() {
+            t.apply(.subagentStart(id: "\(i)", type: type), session: "a", at: t0)
+        }
+        #expect(t.groups(at: t0).first?.subagents == ["Explore ×3", "Plan"])
+        #expect(t.groups(at: t0).first?.subagentTotal == 4)
+    }
+    @Test func longNamesAreTruncated() {
+        let long = String(repeating: "a", count: 200)
+        let s = truncated(long)
+        #expect(s.count == 40)
+        #expect(s.hasSuffix("…"))
+        #expect(truncated("short") == "short")
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", cwd: "/x/" + long, at: t0)
+        #expect(t.groups(at: t0).first?.project.count == 40)
+    }
+    @Test func subagentRowsAreCapped() {
+        var t = SessionTracker()
+        for i in 0..<100 {
+            t.apply(.subagentStart(id: "\(i)", type: String(format: "t%02d", i)), session: "a", at: t0)
+        }
+        let rows = t.groups(maxSubagentRows: 10, at: t0)[0].subagents
+        #expect(rows.count == 11)
+        #expect(rows.last == "… and 90 more")
+        #expect(t.groups(at: t0)[0].subagents.count == 11)
+        #expect(t.groups(at: t0)[0].subagentTotal == 100)
+    }
+    @Test func expiredSubagentsExcluded() {
+        var t = SessionTracker()
+        t.apply(.subagentStart(id: "1", type: "Explore"), session: "a", at: t0.addingTimeInterval(-7200))
+        t.apply(.subagentStart(id: "2", type: "Plan"), session: "a", at: t0)
+        #expect(t.groups(at: t0) == [WorkerGroup(project: "a", mainWorking: false, subagents: ["Plan"], subagentTotal: 1)])
+        t.apply(.subagentStop(id: "2"), session: "a", at: t0)
+        #expect(t.groups(at: t0).isEmpty)
+    }
+}
+
+struct LidGuardTests {
+    private func battery(_ pct: Int) -> PowerStatus { PowerStatus(batteryPercent: pct, onAC: false, thermalHot: false) }
+    private let charger = PowerStatus(batteryPercent: 50, onAC: true, thermalHot: false)
+
+    @Test func chargerAlwaysAllowsAndBatteryIsRefusedByDefault() {
+        var g = LidGuard()
+        let r1 = g.allows(charger, batteryAllowed: false)
+        #expect(r1)
+        let r2 = g.allows(battery(90), batteryAllowed: false)
+        #expect(!r2)
+    }
+
+    @Test func optInBatteryStopsAtThirtyAndResumesAtThirtyFive() {
+        var g = LidGuard()
+        let r3 = g.allows(battery(50), batteryAllowed: true)
+        #expect(r3)
+        let r4 = g.allows(battery(30), batteryAllowed: true)
+        #expect(!r4)
+        let r5 = g.allows(battery(33), batteryAllowed: true)
+        #expect(!r5)
+        let r6 = g.allows(battery(35), batteryAllowed: true)
+        #expect(r6)
+        let r7 = g.allows(battery(30), batteryAllowed: true)
+        #expect(!r7)
+        let r8 = g.allows(charger, batteryAllowed: true)
+        #expect(r8)
+    }
+
+    @Test func desktopWithoutBatteryIsAllowed() {
+        var g = LidGuard()
+        let r9 = g.allows(PowerStatus(batteryPercent: nil, onAC: true, thermalHot: false), batteryAllowed: false)
+        #expect(r9)
+    }
+}

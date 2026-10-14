@@ -6,7 +6,7 @@ import WakeloopCore
 
 enum Mode: String { case auto, on, off }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let power = PowerManager()
     private var tracker = SessionTracker()
@@ -28,11 +28,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var whyText: NSTextView?
     private let lid = LidManager()
     private var lidFailed = false
+    // Whether the sudoers rule is installed; checked at launch and after setup or removal (spawns sudo).
+    private var lidSetUp = false
+    private var lidGuard = LidGuard()
+    private var lastLidAllowed = true
+    private var lidOnBattery: Bool {
+        get { defaults.bool(forKey: "lidOnBattery") }
+        set { defaults.set(newValue, forKey: "lidOnBattery") }
+    }
     private var lidEnabled: Bool {
         get { defaults.bool(forKey: "lidClosed") }
         set { defaults.set(newValue, forKey: "lidClosed") }
     }
     private var lastVerdict: GuardVerdict = .allowed
+    private var collapsedProjects = Set<String>()
+    // Sub-agent rows per project in the current menu; the rows are inserted or removed in place on toggle.
+    private var projectRows: [String: (item: NSMenuItem, subs: [NSMenuItem])] = [:]
+    private var menuIsOpen = false
     private let canNotify = Bundle.main.bundleIdentifier != nil
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -41,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Crash recovery: if a previous run left sleep disabled, restore it (only when we set it).
         if defaults.bool(forKey: "lidOwned"), lid.sleepDisabledNow() == true { lid.setSleepDisabled(false) }
         defaults.set(false, forKey: "lidOwned")
+        lidSetUp = lid.isSetUp()
         refresh()
         // Ctrl+Opt+Cmd+P pauses for 30 min (or resumes); Ctrl+Opt+Cmd+M cycles Auto / Always on / Off.
         HotKeys.register(keyCode: kVK_ANSI_P, id: 1) { [weak self] in self?.togglePause() }
@@ -76,9 +89,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !wanted { defaults.set(false, forKey: "lidOwned") }
         } else if wanted {
             lidFailed = true
+            lidSetUp = false
             defaults.set(false, forKey: "lidOwned")
-            notify("Lid-closed mode needs one-time setup. Run: wakeloop lid-setup")
+            notify("Lid-closed mode needs setup. Open the Wakeloop menu and choose Set up lid-closed mode.")
         }
+    }
+
+    /// Runs `shell` as root behind the standard macOS password dialog. nil on success or when the user cancels.
+    private func runPrivileged(_ shell: String, prompt: String) -> String? {
+        var error: NSDictionary?
+        NSAppleScript(source: LidManager.appleScript(running: shell, prompt: prompt))?.executeAndReturnError(&error)
+        guard let error else { return nil }
+        if (error[NSAppleScript.errorNumber] as? Int) == -128 { return nil }
+        return error[NSAppleScript.errorMessage] as? String ?? "Unknown error"
+    }
+
+    private func confirm(_ title: String, _ detail: String, button: String) -> Bool {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = detail
+        alert.addButton(withTitle: button)
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func showError(_ text: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Wakeloop"
+        alert.informativeText = text
+        alert.runModal()
+    }
+
+    @objc private func setupLid() {
+        guard confirm("Set up lid-closed mode",
+                      "macOS needs your permission once. Wakeloop will allow itself to run only two commands as administrator: turning sleep prevention on and off.\n\nYou can remove this any time from the Wakeloop menu. Never put a working Mac in a closed bag.",
+                      button: "Continue") else { return }
+        guard let script = LidManager.installScript(user: NSUserName()) else {
+            showError("This account name can't be used for setup.")
+            return
+        }
+        if let message = runPrivileged(script, prompt: "Wakeloop needs permission to keep your Mac awake with the lid closed.") {
+            showError("Setup failed: \(message)")
+        }
+        lidSetUp = lid.isSetUp()
+        if lidSetUp {
+            lidEnabled = true
+            lidFailed = false
+            notify("Lid-closed mode is set up and on.")
+        }
+        refresh()
+    }
+
+    @objc private func removeLidSetup() {
+        guard confirm("Remove lid-closed setup", "Wakeloop will no longer be able to keep your Mac awake with the lid closed.", button: "Remove") else { return }
+        if lid.isActive { lid.setSleepDisabled(false) }
+        defaults.set(false, forKey: "lidOwned")
+        if let message = runPrivileged(LidManager.removeScript, prompt: "Wakeloop needs permission to remove its lid-closed setup.") {
+            showError("Removal failed: \(message)")
+        }
+        lidSetUp = lid.isSetUp()
+        if !lidSetUp { lidEnabled = false }
+        refresh()
+    }
+
+    @objc private func toggleLidOnBattery() {
+        if !lidOnBattery {
+            guard confirm("Allow lid-closed mode on battery?",
+                          "By default lid-closed mode only works while the charger is connected. If you allow battery, Wakeloop keeps the Mac awake with the lid closed until the battery reaches 30%, then lets it sleep.\n\nA closed Mac has less airflow. Never put a working Mac in a closed bag.",
+                          button: "Allow") else { return }
+        }
+        lidOnBattery.toggle()
+        refresh()
     }
 
     @objc private func toggleLid() {
@@ -110,6 +193,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func cycleMode() {
         let order: [Mode] = [.auto, .on, .off]
         mode = order[((order.firstIndex(of: mode) ?? 0) + 1) % order.count]
+        refresh()
+    }
+
+    private func toggleProject(_ name: String) {
+        guard let row = projectRows[name], let menu = row.item.menu else { return }
+        if collapsedProjects.insert(name).inserted {
+            row.subs.forEach { menu.removeItem($0) }
+        } else {
+            collapsedProjects.remove(name)
+            var index = menu.index(of: row.item) + 1
+            for sub in row.subs { menu.insertItem(sub, at: index); index += 1 }
+        }
+        (row.item.view as? ProjectRowView)?.collapsed = collapsedProjects.contains(name)
+    }
+
+    func menuWillOpen(_ menu: NSMenu) { menuIsOpen = true }
+
+    func menuDidClose(_ menu: NSMenu) {
+        menuIsOpen = false
         refresh()
     }
 
@@ -225,7 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let wantsHold: Bool
         var reason: String
         let workingCount = tracker.workingCount
-        let workingNames = tracker.workingNames
+        let workerGroups = tracker.workingGroups
         switch mode {
         case .off: wantsHold = false; reason = "Wakeloop is off"
         case .on: wantsHold = true; reason = "Always on"
@@ -242,8 +344,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if paused, let until = pausedUntil {
             reason = "Paused until \(until.formatted(date: .omitted, time: .shortened))"
         }
-        let verdict = safety.evaluate(SystemPower.read())
+        let status = SystemPower.read()
+        let verdict = safety.evaluate(status)
         let hold = wantsHold && !paused && verdict == .allowed
+        let lidAllowed = lidGuard.allows(status, batteryAllowed: lidOnBattery)
+        if lidAllowed != lastLidAllowed {
+            lastLidAllowed = lidAllowed
+            if hold && lidEnabled && lidSetUp && !lidAllowed {
+                notify(lidOnBattery ? "Lid-closed mode paused: battery is at 30% or lower" : "Lid-closed mode paused: connect the charger")
+            }
+        }
         if verdict != lastVerdict {
             lastVerdict = verdict
             if wantsHold && verdict != .allowed {
@@ -258,15 +368,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lock.unlock()
 
         power.setHold(hold)
-        applyLid(wanted: hold && lidEnabled)
+        applyLid(wanted: hold && lidEnabled && lidSetUp && lidAllowed)
         setStatusTitle(hold: hold, workingCount: workingCount)
+        // An open menu is left alone; it is rebuilt when it closes.
+        guard !menuIsOpen else { return }
 
+        projectRows = [:]
         let menu = NSMenu()
+        menu.delegate = self
         menu.addItem(withTitle: hold ? "Awake: \(reason)" : "Sleep allowed: \(reason)", action: nil, keyEquivalent: "")
-        if !workingNames.isEmpty {
+        if !workerGroups.isEmpty {
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Working now (\(workingNames.count))", action: nil, keyEquivalent: "")
-            for name in workingNames { menu.addItem(withTitle: "   \(name)", action: nil, keyEquivalent: "") }
+            menu.addItem(withTitle: "Working now (\(workingCount))", action: nil, keyEquivalent: "")
+            for group in workerGroups.prefix(12) {
+                let subs = group.subagentTotal
+                var hints: [String] = []
+                if group.mainWorking { hints.append("working") }
+                if subs > 0 { hints.append("\(subs) subagent\(subs == 1 ? "" : "s")") }
+                let text = "\(group.project) (\(hints.joined(separator: ", ")))"
+                if subs == 0 {
+                    menu.addItem(withTitle: "   \(text)", action: nil, keyEquivalent: "")
+                    continue
+                }
+                let collapsed = collapsedProjects.contains(group.project)
+                let item = NSMenuItem()
+                let row = ProjectRowView(title: text, collapsed: collapsed)
+                row.onClick = { [weak self] in self?.toggleProject(group.project) }
+                item.view = row
+                let subItems = group.subagents.enumerated().map { (i, name) in
+                    NSMenuItem(title: "      \(i == group.subagents.count - 1 ? "└ " : "├ ")\(name)", action: nil, keyEquivalent: "")
+                }
+                projectRows[group.project] = (item, subItems)
+                menu.addItem(item)
+                if !collapsed { subItems.forEach { menu.addItem($0) } }
+            }
+            if workerGroups.count > 12 {
+                menu.addItem(withTitle: "   … and \(workerGroups.count - 12) more projects", action: nil, keyEquivalent: "")
+            }
             menu.addItem(.separator())
         }
         let why = NSMenuItem(title: "Why is my Mac awake…", action: #selector(showWhy), keyEquivalent: "")
@@ -309,11 +447,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         graceItem.submenu = graceMenu
         menu.addItem(graceItem)
 
-        let lidItem = NSMenuItem(title: lidFailed ? "Lid-closed (needs setup: wakeloop lid-setup)" : "Keep awake with lid closed",
-                                 action: #selector(toggleLid), keyEquivalent: "")
-        lidItem.target = self
-        lidItem.state = lidEnabled ? .on : .off
-        menu.addItem(lidItem)
+        if lidSetUp {
+            let lidItem = NSMenuItem(title: "Keep awake with lid closed", action: #selector(toggleLid), keyEquivalent: "")
+            lidItem.target = self
+            lidItem.state = lidEnabled ? .on : .off
+            menu.addItem(lidItem)
+            let battery = NSMenuItem(title: "Also allow on battery (stops at 30%)", action: #selector(toggleLidOnBattery), keyEquivalent: "")
+            battery.target = self
+            battery.state = lidOnBattery ? .on : .off
+            menu.addItem(battery)
+            let remove = NSMenuItem(title: "Remove lid-closed setup…", action: #selector(removeLidSetup), keyEquivalent: "")
+            remove.target = self
+            menu.addItem(remove)
+        } else {
+            let setup = NSMenuItem(title: "Set up lid-closed mode…", action: #selector(setupLid), keyEquivalent: "")
+            setup.target = self
+            menu.addItem(setup)
+        }
 
         let login = NSMenuItem(title: "Launch at login", action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self

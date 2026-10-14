@@ -14,6 +14,22 @@ public enum AgentEvent: Equatable {
     case other
 }
 
+/// One project's working state: its main session and the rows for its live sub-agents.
+public struct WorkerGroup: Equatable {
+    public let project: String
+    public let mainWorking: Bool
+    /// Each sub-agent type once ("Explore ×3" when repeated), capped; a final "… and N more" row when cut.
+    public let subagents: [String]
+    /// Live sub-agents across all rows, before collapsing and capping.
+    public let subagentTotal: Int
+}
+
+/// Shortens `s` to at most `max` characters, ending with "…" when cut.
+public func truncated(_ s: String, max: Int = 40) -> String {
+    guard s.count > max else { return s }
+    return max > 1 ? String(s.prefix(max - 1)) + "…" : "…"
+}
+
 /// Pure state engine: tracks per-session state and decides whether to hold the Mac awake.
 public struct SessionTracker {
     public var gracePeriod: TimeInterval
@@ -71,6 +87,26 @@ public struct SessionTracker {
         let mains = sessions.filter { $0.value == .working }.map { label($0.key) }
         let subs = liveSubagents(at: now).map { "\(label($0.session)) > subagent (\($0.type))" }
         return (mains + subs).sorted()
+    }
+
+    public var workingGroups: [WorkerGroup] { groups() }
+
+    /// One group per project label with a working main session or live sub-agents, sorted by project.
+    public func groups(maxSubagentRows: Int = 10, at now: Date = Date()) -> [WorkerGroup] {
+        var workingMains = Set<String>()
+        for (session, state) in sessions where state == .working { workingMains.insert(truncated(label(session))) }
+        var agents: [String: [String]] = [:]
+        for sub in liveSubagents(at: now) {
+            agents[truncated(label(sub.session)), default: []].append(truncated(sub.type))
+        }
+        return workingMains.union(agents.keys).sorted().map { project in
+            let mine = agents[project] ?? []
+            let kinds = mine.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }.sorted { $0.key < $1.key }
+            var rows = kinds.prefix(Swift.max(0, maxSubagentRows)).map { $0.value > 1 ? "\($0.key) ×\($0.value)" : $0.key }
+            let hidden = kinds.dropFirst(Swift.max(0, maxSubagentRows)).reduce(0) { $0 + $1.value }
+            if hidden > 0 { rows.append("… and \(hidden) more") }
+            return WorkerGroup(project: project, mainWorking: workingMains.contains(project), subagents: rows, subagentTotal: mine.count)
+        }
     }
 
     /// Human-readable reason, for the future "why is my Mac awake" panel.

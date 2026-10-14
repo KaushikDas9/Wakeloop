@@ -56,6 +56,39 @@ public final class LidManager {
         watchdog = nil
     }
 
+    public static let sudoersPath = "/etc/sudoers.d/wakeloop"
+
+    /// True when the sudoers rule is installed and works without a password.
+    public func isSetUp() -> Bool {
+        run("/usr/bin/sudo", ["-n", "-l", Self.pmset, "disablesleep", "1"]).status == 0
+    }
+
+    /// Script run as root by the in-app setup button: validates the rule with visudo before installing it, so a bad
+    /// rule can never reach /etc/sudoers.d. nil when the account name is not a plain name (it goes into the rule).
+    public static func installScript(user: String) -> String? {
+        guard !user.isEmpty, user.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "._-".contains($0)) }) else { return nil }
+        return """
+        set -e
+        T=$(/usr/bin/mktemp /tmp/wakeloop-sudoers.XXXXXX)
+        trap '/bin/rm -f "$T"' EXIT
+        /usr/bin/printf '%s\\n' '\(sudoersLine(user: user))' > "$T"
+        /usr/sbin/visudo -cf "$T"
+        /usr/bin/install -m 0440 -o root -g wheel "$T" \(sudoersPath)
+        """
+    }
+
+    public static let removeScript = "/bin/rm -f \(sudoersPath)"
+
+    /// AppleScript source that runs `shell` as root behind the standard macOS password dialog.
+    public static func appleScript(running shell: String, prompt: String) -> String {
+        func quoted(_ s: String) -> String {
+            "\"" + s.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n") + "\""
+        }
+        return "do shell script \(quoted(shell)) with prompt \(quoted(prompt)) with administrator privileges"
+    }
+
     /// The exact rule to add with `sudo visudo -f /etc/sudoers.d/wakeloop`.
     public static func sudoersLine(user: String) -> String {
         "\(user) ALL=(root) NOPASSWD: \(pmset) disablesleep 0, \(pmset) disablesleep 1"
