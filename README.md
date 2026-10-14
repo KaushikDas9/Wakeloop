@@ -75,7 +75,16 @@ Requires macOS 13 or later and Swift 5.9 or later.
 
 ## Lid-closed mode (optional)
 
-Lid-closed mode is off by default. Power assertions alone do not keep a closed Mac awake, so Wakeloop uses `pmset disablesleep`, which needs administrator rights. Choose **Set up lid-closed mode…** in the menu. Wakeloop explains what it will do, then macOS shows its standard password dialog. After that one approval, Wakeloop can turn sleep prevention on and off by itself, and only for two commands. A watchdog restores normal sleep if the app quits or crashes. Lid-closed mode works only while the charger is connected. You can opt in to **Also allow on battery**, which keeps it on until the battery reaches 30%. **Remove lid-closed setup…** in the menu undoes it. Prefer the terminal? `wakeloop lid-setup` prints the equivalent `sudoers` rule.
+Lid-closed mode is off by default. Power assertions alone do not keep a closed Mac awake, so Wakeloop uses `pmset disablesleep`, which needs administrator rights.
+
+Open **Settings > Lid-closed mode…** in the menu. The window has:
+
+- **Set up…**, the first time. Wakeloop explains what it will do, then macOS shows its standard password dialog. After that one approval, Wakeloop can turn sleep prevention on and off by itself, and only for two commands. A watchdog restores normal sleep if the app quits or crashes.
+- **Keep awake with lid closed**, a switch.
+- **Power source**: **Charger only** (default), or **Charger or battery (stops at 30%)**. Choosing battery asks you to confirm first.
+- **Remove setup…**, which undoes the setup.
+
+Charger only is the default because lid-closed mode works only while the charger is connected. Prefer the terminal? `wakeloop lid-setup` prints the equivalent `sudoers` rule.
 
 **Warning:** do not put a working Mac in a closed bag.
 
