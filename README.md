@@ -127,8 +127,7 @@ Wakeloop is free and open source under the MIT License.
 - Found a bug or want a feature? Open an issue. The issue templates ask for what we need.
 - Pull requests are welcome. Start with `swift test` before you open one.
 - If Wakeloop saves you a sleeping agent, a star on the repository helps others find it.
-
-<!-- TODO: add a sponsorship link here (Buy Me a Coffee and/or GitHub Sponsors) once the owner's username is set. Also set the matching lines in .github/FUNDING.yml. Do not add a placeholder link. -->
+- Want to say thanks? [Buy me a coffee on Ko-fi](https://ko-fi.com/koushikdas).
 
 ## Versions
 
