@@ -15,7 +15,7 @@
 # expiry, app icon). It has no assets/AppIcon.icns, so this formula copies the
 # icon only when the file exists. `brew install --HEAD wakeloop` builds main.
 class Wakeloop < Formula
-  desc "Keep a Mac awake only while Claude Code is working"
+  desc "Keep a Mac awake only while an AI coding agent is working"
   homepage "https://github.com/KaushikDas9/Wakeloop"
   url "https://github.com/KaushikDas9/Wakeloop/archive/refs/tags/v0.1.0.tar.gz"
   sha256 "433d0ae500c8e9c1c27ebced21b6a499c04a67ee737d67ae6eab4874e2e5afa4"
@@ -79,9 +79,11 @@ class Wakeloop < Formula
       Or open it directly:
         open "#{opt_prefix}/Wakeloop.app"
 
-      The app must be running for the wakeloop CLI to work. Connect Claude Code with:
+      To connect your agent, open Wakeloop, then choose Settings > Set up Claude Code hooks...
+      (or Set up Codex hooks...). The first launch also opens a setup guide.
+
+      The app must be running for the wakeloop CLI to work. To merge the hooks by hand instead:
         wakeloop hook-snippet claude
-      and merge the output into your Claude Code settings by hand.
     EOS
   end
 
