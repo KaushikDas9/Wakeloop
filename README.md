@@ -65,6 +65,19 @@ Builds made by `scripts/build-app.sh` are ad-hoc signed and **not notarized by A
 
 Only do this for a build you built yourself or got from a source you trust.
 
+### Install with Homebrew (not available yet)
+
+A source-built Homebrew formula is prepared in [`packaging/homebrew/`](packaging/homebrew/README.md). It needs Xcode 15 or later and builds on your Mac, so Apple signing is not involved. **This does not work yet.** It works only after the owner publishes the tap repository `KaushikDas9/homebrew-wakeloop`. Until then, use build from source above.
+
+Once the tap is published:
+
+```sh
+brew tap KaushikDas9/wakeloop
+brew install wakeloop
+```
+
+The formula installs the `wakeloop` CLI and keeps `Wakeloop.app` in Homebrew's opt directory. Its caveats show how to link the app into `/Applications`.
+
 ### Connect Claude Code
 
 Open the Wakeloop menu, go to **Settings**, and choose **Set up Claude Code hooks…**. Wakeloop shows what it will change and asks you to confirm. It adds its hook entries to `~/.claude/settings.json`, keeps your other hooks where they are, and saves a timestamped backup next to the file first. Running it again changes nothing. To undo it, choose **Remove Claude Code hooks…**. Only Wakeloop's own entries are removed.
