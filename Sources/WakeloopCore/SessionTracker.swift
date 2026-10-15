@@ -40,6 +40,10 @@ public struct SessionTracker {
     public private(set) var subagents: [String: [String: (type: String, since: Date)]] = [:]
     /// A SubagentStop that never arrives must not hold the Mac awake forever.
     public static let subagentExpiry: TimeInterval = 3600
+    /// A working main session with no hook and no transcript write for this long is treated as crashed.
+    public static let mainSessionExpiry: TimeInterval = 7200
+    /// Last hook event per session, for the crashed-session expiry.
+    private var lastEvent: [String: Date] = [:]
 
     public init(gracePeriod: TimeInterval = 300) {
         self.gracePeriod = gracePeriod
@@ -48,11 +52,12 @@ public struct SessionTracker {
     public mutating func apply(_ event: AgentEvent, session: String, cwd: String? = nil, transcript: String? = nil, at now: Date = Date()) {
         if let transcript, !transcript.isEmpty { transcripts[session] = transcript }
         if let cwd, !cwd.isEmpty { names[session] = (cwd as NSString).lastPathComponent }
+        lastEvent[session] = now
         switch event {
         case .sessionStart, .stop: sessions[session] = .idle
         case .promptSubmit: sessions[session] = .working
         case .needsInput: sessions[session] = .waiting(since: now)
-        case .sessionEnd: sessions[session] = nil; names[session] = nil; subagents[session] = nil; transcripts[session] = nil
+        case .sessionEnd: sessions[session] = nil; names[session] = nil; subagents[session] = nil; transcripts[session] = nil; lastEvent[session] = nil
         case .subagentStart(let id, let type): subagents[session, default: [:]][id] = (type, now)
         case .subagentStop(let id):
             subagents[session]?[id] = nil
@@ -80,6 +85,18 @@ public struct SessionTracker {
         }
     }
 
+    /// Drops working main sessions with no hook event and no transcript write for `mainSessionExpiry`. A crashed
+    /// session never sends Stop. Waiting and idle sessions are left alone. A long silent command still holds
+    /// through the process tree (see `wantsHold`).
+    public mutating func pruneCrashedSessions(at now: Date = Date(), lastWrite: (String) -> Date?) {
+        for (session, state) in sessions where state == .working {
+            guard var last = lastEvent[session] else { continue }
+            if let path = transcripts[session], let written = lastWrite(path), written > last { last = written }
+            guard now.timeIntervalSince(last) > Self.mainSessionExpiry else { continue }
+            sessions[session] = nil; names[session] = nil; transcripts[session] = nil; lastEvent[session] = nil
+        }
+    }
+
     private func liveSubagents(at now: Date) -> [(session: String, type: String)] {
         subagents.flatMap { session, agents in
             agents.values.filter { now.timeIntervalSince($0.since) < Self.subagentExpiry }.map { (session, $0.type) }
@@ -95,6 +112,12 @@ public struct SessionTracker {
             case .idle: return false
             }
         }
+    }
+
+    /// Auto mode: a tracked hold, or a fallback signal. The fallbacks are a busy child of an agent (process tree)
+    /// and a transcript written in the last few seconds.
+    public func wantsHold(busyChildren: [ProcInfo], activeTranscripts: [FileStamp], at now: Date = Date()) -> Bool {
+        shouldHold(at: now) || !busyChildren.isEmpty || !activeTranscripts.isEmpty
     }
 
     /// Working sessions (between a prompt and its Stop) plus running sub-agents, each counted as a worker.

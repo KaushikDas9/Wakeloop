@@ -265,3 +265,128 @@ struct StaleSubagentTests {
         #expect(t.subagents["s2"]?.count == 1)
     }
 }
+
+struct HoldCapTests {
+    let t0 = Date(timeIntervalSince1970: 1_000_000)
+    private func at(_ hours: Double) -> Date { t0.addingTimeInterval(hours * 3600) }
+
+    @Test func tripsAfterLimitAndStaysTrippedUntilActivity() {
+        var cap = HoldCap(limit: 8 * 3600, since: t0)
+        let before = cap.tripped(holding: true, at: at(7.99))
+        let atLimit = cap.tripped(holding: true, at: at(8))
+        // Still held after the trip, with no activity: the cap does not re-engage on its own.
+        let later = cap.tripped(holding: true, at: at(9))
+        cap.activity(at: at(9))
+        let afterActivity = cap.tripped(holding: true, at: at(9.01))
+        // The timer restarted at the activity, so it trips 8 hours later.
+        let nextTrip = cap.tripped(holding: true, at: at(17.01))
+        #expect(!before)
+        #expect(atLimit)
+        #expect(later)
+        #expect(!afterActivity)
+        #expect(nextTrip)
+    }
+
+    @Test func activityRestartsTheQuietTimer() {
+        var cap = HoldCap(limit: 8 * 3600, since: t0)
+        cap.activity(at: at(7))
+        let early = cap.tripped(holding: true, at: at(14))
+        let late = cap.tripped(holding: true, at: at(15))
+        #expect(!early)
+        #expect(late)
+    }
+
+    @Test func quietTimerOnlyRunsWhileHolding() {
+        var cap = HoldCap(limit: 8 * 3600, since: t0)
+        let idle = cap.tripped(holding: false, at: at(20))
+        let justBefore = cap.tripped(holding: true, at: at(27.9))
+        let atLimit = cap.tripped(holding: true, at: at(28))
+        #expect(!idle)
+        #expect(!justBefore)
+        #expect(atLimit)
+    }
+
+    @Test func offNeverTrips() {
+        var cap = HoldCap(limit: nil, since: t0)
+        let tripped = cap.tripped(holding: true, at: at(100))
+        #expect(!tripped)
+    }
+
+    @Test func turningOffClearsATrippedCap() {
+        var cap = HoldCap(limit: 8 * 3600, since: t0)
+        let trip = cap.tripped(holding: true, at: at(8))
+        cap.limit = nil
+        let off = cap.tripped(holding: true, at: at(9))
+        // Nine quiet hours are under a 12-hour limit, so the old trip must not carry over.
+        cap.limit = 12 * 3600
+        let fresh = cap.tripped(holding: true, at: at(9))
+        #expect(trip)
+        #expect(!off)
+        #expect(!fresh)
+    }
+}
+
+struct CrashedSessionTests {
+    let t0 = Date(timeIntervalSince1970: 1_000_000)
+
+    @Test func crashedWorkingSessionExpiresAfterTwoHours() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", cwd: "/x/Wakeloop", at: t0)
+        t.pruneCrashedSessions(at: t0.addingTimeInterval(7199)) { _ in nil }
+        #expect(t.shouldHold(at: t0.addingTimeInterval(7199)))
+        t.pruneCrashedSessions(at: t0.addingTimeInterval(7201)) { _ in nil }
+        #expect(!t.shouldHold(at: t0.addingTimeInterval(7201)))
+        #expect(t.workingCount == 0)
+        #expect(t.sessions["a"] == nil)
+    }
+
+    @Test func hookEventKeepsSessionAlive() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", at: t0)
+        t.apply(.other, session: "a", at: t0.addingTimeInterval(3600))
+        t.pruneCrashedSessions(at: t0.addingTimeInterval(7201)) { _ in nil }
+        #expect(t.sessions["a"] == .working)
+        t.pruneCrashedSessions(at: t0.addingTimeInterval(3600 + 7201)) { _ in nil }
+        #expect(t.sessions["a"] == nil)
+    }
+
+    @Test func transcriptWriteKeepsSessionAlive() {
+        var t = SessionTracker()
+        let transcript = "/p/proj/sess-1.jsonl"
+        t.apply(.promptSubmit, session: "a", transcript: transcript, at: t0)
+        let now = t0.addingTimeInterval(3 * 3600)
+        t.pruneCrashedSessions(at: now) { path in
+            path == transcript ? now.addingTimeInterval(-60) : nil
+        }
+        #expect(t.sessions["a"] == .working)
+        t.pruneCrashedSessions(at: now) { _ in nil }
+        #expect(t.sessions["a"] == nil)
+    }
+
+    @Test func waitingAndIdleSessionsAreNotExpired() {
+        var t = SessionTracker(gracePeriod: 300)
+        t.apply(.sessionStart, session: "idle", at: t0)
+        t.apply(.needsInput, session: "wait", at: t0)
+        t.pruneCrashedSessions(at: t0.addingTimeInterval(3 * 3600)) { _ in nil }
+        #expect(t.sessions["idle"] == .idle)
+        #expect(t.sessions["wait"] == .waiting(since: t0))
+    }
+
+    @Test func processTreeHoldStillWorksAfterExpiry() {
+        var t = SessionTracker()
+        t.apply(.promptSubmit, session: "a", cwd: "/x/Wakeloop", at: t0)
+        let now = t0.addingTimeInterval(3 * 3600)
+        t.pruneCrashedSessions(at: now) { _ in nil }
+        #expect(!t.shouldHold(at: now))
+        // A silent 2-hour command: the agent is idle in the hooks, but its child is busy.
+        let busy = ProcessTree.busyAgentDescendants([
+            ProcInfo(pid: 10, ppid: 1, cpu: 0, name: "claude"),
+            ProcInfo(pid: 11, ppid: 10, cpu: 95, name: "make"),
+        ])
+        #expect(!busy.isEmpty)
+        #expect(t.wantsHold(busyChildren: busy, activeTranscripts: [], at: now))
+        #expect(!t.wantsHold(busyChildren: [], activeTranscripts: [], at: now))
+        let transcript = [FileStamp(path: "/p/x.jsonl", modified: now)]
+        #expect(t.wantsHold(busyChildren: [], activeTranscripts: transcript, at: now))
+    }
+}

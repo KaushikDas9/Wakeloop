@@ -37,7 +37,7 @@ The dropdown starts with a status line, then a "Working now" list of projects. A
 - **Mode**: Auto, Always on (e.g. Remote Control), or Off.
 - **Pause**: 30 minutes, 1 hour, until tomorrow, or Resume now.
 - **Why is my Mac awake…**: a report of Wakeloop's state and every sleep assertion on the Mac.
-- **Settings**: Sleep after, Launch at login, and Lid-closed mode….
+- **Settings**: Sleep after, Max hold, Launch at login, and Lid-closed mode….
 - **Quit Wakeloop**
 
 On macOS 14.4 and later, some items show a short grey subtitle. The lid-closed window has "?" buttons with more detail.
@@ -82,6 +82,7 @@ This prints the hooks config for Claude Code settings. Merge it into your settin
 - Modes: Auto (the default), Always on, and Off.
 - Pause for 30 minutes, 1 hour, or until 6 a.m. the next day. Resume at any time.
 - Shortcuts: `Ctrl+Opt+Cmd+P` pauses or resumes, and `Ctrl+Opt+Cmd+M` cycles the mode.
+- Crashed sessions expire: a working session with no hook event and no transcript write for 2 hours is dropped. A long silent command still holds through the process tree.
 - Launch at login.
 - A "Why is my Mac awake" window that shows Wakeloop's state, each session, busy processes, and every sleep assertion on the Mac.
 - CLI for scripts and agents: `wakeloop hold --for 30m`, `wakeloop done`, `wakeloop hook-snippet claude`, and `wakeloop lid-setup`.
@@ -90,6 +91,7 @@ This prints the hooks config for Claude Code settings. Merge it into your settin
 
 - Sleep is allowed when the battery is at 20% or lower on battery. The hold comes back at 25%, or as soon as the charger is connected.
 - Sleep is allowed when the Mac is too hot. Wakeloop sends a notification when this happens.
+- Max hold: an automatic hold is released after 8 hours with no agent event or transcript write (Settings, "Max hold": 4, 8, 12 hours or Off). A notification says so. The next agent event brings the hold back. Always on and manual holds are not capped.
 - Pause and Off release the hold.
 - A sub-agent whose transcript has not been written for 3 minutes is dropped, since it was probably stopped. Any sub-agent still listed after 1 hour is dropped too.
 - Wakeloop does not change your agent configuration. You merge the hooks yourself.
@@ -115,7 +117,7 @@ Wakeloop is an early pre-release (v0.1.0).
 
 - **Agents:** Claude Code only. Codex detection is in place but has not been live-tested, so it is not supported yet.
 - **Live-tested on the author's Mac:** building and launching the app, the hook server, Claude Code hooks, the working-agent count, project names, sub-agent tracking, the menu, modes, lid-closed setup, and lid-closed mode on the charger.
-- **Not yet live-tested:** the "Sleep after" timeout, the battery guard, launch at login, the global shortcuts, lid-closed mode on battery, and process-tree behaviour (keeping the Mac awake while a child process runs).
+- **Not yet live-tested:** the "Sleep after" timeout, the max hold and crashed-session expiry, the battery guard, launch at login, the global shortcuts, lid-closed mode on battery, and process-tree behaviour (keeping the Mac awake while a child process runs).
 - The unit tests run with `swift test`.
 
 ## Support

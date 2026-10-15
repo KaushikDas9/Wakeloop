@@ -14,6 +14,38 @@ public enum GuardVerdict: Equatable {
     case allowed
     case lowBattery
     case tooHot
+    case holdTimedOut
+}
+
+/// Maximum time an automatic hold may last without agent activity. Any hook event or transcript write restarts
+/// the timer. Once it trips, the hold stays released until new activity arrives, so a stuck agent cannot re-engage it.
+public struct HoldCap {
+    /// nil means Off.
+    public var limit: TimeInterval?
+    private var quietSince: Date
+    private var tripped = false
+
+    public init(limit: TimeInterval? = 8 * 3600, since now: Date = Date()) {
+        self.limit = limit
+        self.quietSince = now
+    }
+
+    /// Call on every hook event and on every transcript write seen by the app.
+    public mutating func activity(at now: Date = Date()) {
+        quietSince = now
+        tripped = false
+    }
+
+    /// True when the hold must be released. The quiet timer only runs while `holding` is true, so it starts when a hold starts.
+    public mutating func tripped(holding: Bool, at now: Date = Date()) -> Bool {
+        guard let limit else { tripped = false; return false }
+        if !holding {
+            if !tripped { quietSince = now }
+            return false
+        }
+        if !tripped && now.timeIntervalSince(quietSince) >= limit { tripped = true }
+        return tripped
+    }
 }
 
 /// Safety cutoffs: always allow sleep on low battery (with hysteresis) or high heat.

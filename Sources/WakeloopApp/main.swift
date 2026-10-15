@@ -22,6 +22,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         get { defaults.object(forKey: "graceMinutes") as? Int ?? 5 }
         set { defaults.set(newValue, forKey: "graceMinutes") }
     }
+    // Hours an automatic hold may last without agent activity; 0 is Off.
+    private var maxHoldHours: Int {
+        get { defaults.object(forKey: "maxHoldHours") as? Int ?? 8 }
+        set { defaults.set(newValue, forKey: "maxHoldHours") }
+    }
+    private var holdCap = HoldCap()
     private var server: HookServer?
     private let lock = NSLock()
     private var whyWindow: NSWindow?
@@ -56,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
 
     func applicationDidFinishLaunching(_ note: Notification) {
         tracker.gracePeriod = TimeInterval(graceMinutes * 60)
+        holdCap.limit = Self.holdLimit(hours: maxHoldHours)
         if canNotify { UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in } }
         // Crash recovery: if a previous run left sleep disabled, restore it (only when we set it).
         if defaults.bool(forKey: "lidOwned"), lid.sleepDisabledNow() == true { lid.setSleepDisabled(false) }
@@ -79,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         switch msg {
         case .event(let session, let event, let cwd, let transcript):
             tracker.apply(event, session: session, cwd: cwd, transcript: transcript)
+            holdCap.activity()
         case .hold(let secs): manualUntil = Date().addingTimeInterval(secs)
         case .done: manualUntil = nil
         }
@@ -178,6 +186,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         refresh()
     }
 
+    private static func holdLimit(hours: Int) -> TimeInterval? { hours > 0 ? TimeInterval(hours * 3600) : nil }
+
+    /// Notification text for a guard that has just started releasing the hold.
+    private static func guardNotice(_ verdict: GuardVerdict) -> String {
+        switch verdict {
+        case .tooHot: return "Mac is too hot: letting it sleep"
+        case .holdTimedOut: return "Max hold reached with no agent activity: letting it sleep"
+        case .lowBattery, .allowed: return "Battery low: letting it sleep"
+        }
+    }
+
     private func notify(_ text: String) {
         guard canNotify else { return }
         let content = UNMutableNotificationContent()
@@ -258,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         lock.unlock()
         let power = SystemPower.read()
         var out = "Wakeloop is \(holding ? "HOLDING the Mac awake" : "allowing sleep")\n"
-        out += "Lid-closed: \(lidEnabled ? (lid.isActive ? "on, active" : "on, idle") : "off")\nMode: \(mode.rawValue)   Paused: \(paused)   Manual hold: \(manual)   Grace: \(graceMinutes) min\n"
+        out += "Lid-closed: \(lidEnabled ? (lid.isActive ? "on, active" : "on, idle") : "off")\nMode: \(mode.rawValue)   Paused: \(paused)   Manual hold: \(manual)   Grace: \(graceMinutes) min   Max hold: \(maxHoldHours == 0 ? "off" : "\(maxHoldHours) h")\n"
         out += "Battery: \(power.batteryPercent.map { "\($0)%" } ?? "none")  AC: \(power.onAC)  Hot: \(power.thermalHot)  Guard: \(verdict)\n\n"
         out += "Agent sessions (\(sessions.count)):\n"
         for (id, state) in sessions.sorted(by: { $0.key < $1.key }) {
@@ -310,6 +329,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
     @objc private func setGrace(_ sender: NSMenuItem) {
         graceMinutes = sender.tag
         lock.lock(); tracker.gracePeriod = TimeInterval(sender.tag * 60); lock.unlock()
+        refresh()
+    }
+
+    @objc private func setMaxHold(_ sender: NSMenuItem) {
+        maxHoldHours = sender.tag
+        lock.lock(); holdCap.limit = Self.holdLimit(hours: sender.tag); lock.unlock()
         refresh()
     }
 
@@ -372,9 +397,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         let busyChildren = ProcessTree.busyAgentDescendants(ProcessTree.snapshot())
         let transcripts = SessionFiles.recentlyActive(SessionFiles.scan())
         lock.lock()
-        tracker.pruneStaleSubagents { path in
+        let lastWrite: (String) -> Date? = { path in
             (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
         }
+        tracker.pruneStaleSubagents(at: Date(), lastWrite: lastWrite)
+        tracker.pruneCrashedSessions(at: Date(), lastWrite: lastWrite)
+        if !transcripts.isEmpty { holdCap.activity() }
         let manual = manualUntil.map { $0 > Date() } ?? false
         let paused = pausedUntil.map { $0 > Date() } ?? false
         if !paused { pausedUntil = nil }
@@ -387,7 +415,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         case .on: wantsHold = true; reason = "Always on"
         case .auto:
             let hooked = manual || tracker.shouldHold()
-            wantsHold = hooked || !busyChildren.isEmpty || !transcripts.isEmpty
+            wantsHold = manual || tracker.wantsHold(busyChildren: busyChildren, activeTranscripts: transcripts)
             reason = manual ? "Manual hold" : tracker.reason()
             if !hooked, let top = busyChildren.max(by: { $0.cpu < $1.cpu }) {
                 reason = "Background work: \(top.name) running under an agent"
@@ -399,7 +427,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
             reason = "Paused until \(until.formatted(date: .omitted, time: .shortened))"
         }
         let status = SystemPower.read()
-        let verdict = safety.evaluate(status)
+        // The cap applies to automatic holds only. Always on and manual holds are explicit choices.
+        let capped = holdCap.tripped(holding: mode == .auto && !manual && wantsHold)
+        let batteryOrHeat = safety.evaluate(status)
+        let verdict = batteryOrHeat == .allowed && capped ? GuardVerdict.holdTimedOut : batteryOrHeat
         let hold = wantsHold && !paused && verdict == .allowed
         let lidAllowed = lidGuard.allows(status, batteryAllowed: lidOnBattery)
         if lidAllowed != lastLidAllowed {
@@ -411,12 +442,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         if verdict != lastVerdict {
             lastVerdict = verdict
             if wantsHold && verdict != .allowed {
-                notify(verdict == .tooHot ? "Mac is too hot: letting it sleep" : "Battery low: letting it sleep")
+                notify(Self.guardNotice(verdict))
             }
         }
         switch verdict {
         case .lowBattery: reason = "Battery low: sleep allowed"
         case .tooHot: reason = "Mac too hot: sleep allowed"
+        case .holdTimedOut: reason = "Max hold reached: sleep allowed until agent activity"
         case .allowed: break
         }
         lock.unlock()
@@ -522,6 +554,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
 
         let settingsMenu = NSMenu()
         settingsMenu.addItem(graceItem)
+
+        let maxHoldMenu = NSMenu()
+        maxHoldMenu.addItem(withTitle: "Release a hold after this long with no agent activity:", action: nil, keyEquivalent: "")
+        maxHoldMenu.addItem(.separator())
+        for hours in [4, 8, 12, 0] {
+            let item = NSMenuItem(title: hours == 0 ? "Off" : "\(hours) hours", action: #selector(setMaxHold(_:)), keyEquivalent: "")
+            item.target = self; item.tag = hours
+            item.state = maxHoldHours == hours ? .on : .off
+            maxHoldMenu.addItem(item)
+        }
+        let maxHoldItem = NSMenuItem(title: "Max hold: \(maxHoldHours == 0 ? "Off" : "\(maxHoldHours) hours")", action: nil, keyEquivalent: "")
+        maxHoldItem.submenu = maxHoldMenu
+        hint(maxHoldItem, subtitle: "Releases a hold no agent has touched for a long time",
+             fallback: "Releases the Mac's hold when no agent event or transcript write has come for this long, so a stuck agent cannot keep the Mac awake all night. A new agent event brings the hold back.")
+        settingsMenu.addItem(maxHoldItem)
+
         let login = NSMenuItem(title: "Launch at login", action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
