@@ -1,19 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" width="900" height="240" role="img" aria-label="Wakeloop: keep your Mac awake only while an AI agent works">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" width="900" height="240" role="img" aria-label="Wakeloop: keep your Mac awake only while an AI agent works. Shows an idle ring and a breathing ring.">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#3d4c7a"/>
       <stop offset="1" stop-color="#2c3a5e"/>
     </linearGradient>
   </defs>
+  <rect x="0" y="0" width="900" height="240" rx="18" fill="#2c3a5e"/>
   <rect x="0" y="0" width="900" height="240" rx="18" fill="url(#bg)"/>
   <text x="60" y="108" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#ffffff">Wakeloop</text>
   <text x="60" y="150" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="22" fill="#e2e8f0">Keep your Mac awake only while your AI agent is working.</text>
   <text x="60" y="196" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="20" fill="#cbd5e1">macOS menu bar app for Claude Code</text>
+
   <g font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" text-anchor="middle">
-    <circle cx="700" cy="120" r="40" fill="none" stroke="#e2e8f0" stroke-width="5"/>
-    <text x="700" y="133" font-size="50" fill="#e2e8f0">○</text>
-    <path d="M 770 120 L 806 120" stroke="#e2e8f0" stroke-width="4" stroke-linecap="round"/>
-    <path d="M 798 110 L 810 120 L 798 130" fill="none" stroke="#e2e8f0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="838" y="133" font-size="50" fill="#ffffff">●</text>
+    <!-- Idle: a single calm ring -->
+    <circle cx="745" cy="120" r="24" fill="none" stroke="#e2e8f0" stroke-opacity="0.55" stroke-width="4.5"/>
+    <text x="745" y="196" font-size="14" fill="#e2e8f0">idle</text>
+
+    <!-- Holding: full ring, beating core, soft rings spreading outward -->
+    <circle cx="840" cy="120" r="48" fill="none" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/>
+    <circle cx="840" cy="120" r="34" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="2.5"/>
+    <circle cx="840" cy="120" r="20" fill="none" stroke="#ffffff" stroke-width="4"/>
+    <circle cx="840" cy="120" r="8" fill="#ffffff"/>
+    <text x="840" y="196" font-size="14" fill="#e2e8f0">working</text>
   </g>
 </svg>

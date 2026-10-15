@@ -1,58 +1,71 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" width="900" height="400" role="img" aria-label="Flow: Claude Code hooks send events to Wakeloop, which tracks session state and holds a macOS sleep assertion. Guards can allow sleep.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 460" width="900" height="460" role="img" aria-label="Flow: Claude Code hooks send events to Wakeloop, which tracks session state and holds a macOS sleep assertion. Guards can allow sleep.">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/>
     </marker>
   </defs>
-  <rect x="0" y="0" width="900" height="400" rx="16" fill="#eef2f7"/>
+  <rect x="0" y="0" width="900" height="460" rx="16" fill="#eef2f7"/>
   <g font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif">
     <!-- Column titles -->
-    <text x="140" y="44" font-size="15" font-weight="600" fill="#334155" text-anchor="middle">1. Agent hooks</text>
-    <text x="450" y="44" font-size="15" font-weight="600" fill="#334155" text-anchor="middle">2. Wakeloop</text>
-    <text x="760" y="44" font-size="15" font-weight="600" fill="#334155" text-anchor="middle">3. macOS</text>
+    <text x="131" y="42" font-size="16" font-weight="600" fill="#334155" text-anchor="middle">1. Agent hooks</text>
+    <text x="426" y="42" font-size="16" font-weight="600" fill="#334155" text-anchor="middle">2. Wakeloop</text>
+    <text x="748" y="42" font-size="16" font-weight="600" fill="#334155" text-anchor="middle">3. macOS</text>
 
-    <!-- Box: Claude Code hooks -->
-    <rect x="40" y="70" width="200" height="120" rx="12" fill="#5b6ee1"/>
-    <text x="140" y="104" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">Claude Code</text>
-    <text x="140" y="130" font-size="14" fill="#ffffff" text-anchor="middle">hooks run curl to</text>
-    <text x="140" y="152" font-size="14" fill="#ffffff" text-anchor="middle">127.0.0.1:47821/event</text>
+    <!-- Box 1: Claude Code hooks -->
+    <rect x="24" y="60" width="214" height="250" rx="12" fill="#4a5bc7"/>
+    <text x="131" y="92" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">Claude Code</text>
+    <text x="131" y="118" font-size="13" fill="#ffffff" text-anchor="middle">hooks POST small events to</text>
+    <text x="131" y="136" font-size="13" fill="#ffffff" text-anchor="middle">127.0.0.1:47821/event</text>
+    <text x="131" y="164" font-size="13" font-weight="600" fill="#ffffff" text-anchor="middle">Hooks</text>
+    <text x="131" y="182" font-size="13" fill="#ffffff" text-anchor="middle">SessionStart</text>
+    <text x="131" y="200" font-size="13" fill="#ffffff" text-anchor="middle">UserPromptSubmit</text>
+    <text x="131" y="218" font-size="13" fill="#ffffff" text-anchor="middle">PermissionRequest</text>
+    <text x="131" y="236" font-size="13" fill="#ffffff" text-anchor="middle">Stop, SessionEnd</text>
+    <text x="131" y="254" font-size="13" fill="#ffffff" text-anchor="middle">Notification</text>
+    <text x="131" y="272" font-size="13" fill="#ffffff" text-anchor="middle">SubagentStart, SubagentStop</text>
 
-    <!-- Box: session table -->
-    <rect x="330" y="70" width="240" height="180" rx="12" fill="#2f8f83"/>
-    <text x="450" y="102" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">Session table</text>
-    <rect x="352" y="118" width="196" height="30" rx="6" fill="#ffffff"/>
-    <text x="370" y="138" font-size="14" fill="#1f2937">project A  ● working</text>
-    <rect x="352" y="156" width="196" height="30" rx="6" fill="#ffffff"/>
-    <text x="370" y="176" font-size="14" fill="#1f2937">project B  ◐ waiting</text>
-    <rect x="352" y="194" width="196" height="30" rx="6" fill="#ffffff"/>
-    <text x="370" y="214" font-size="14" fill="#1f2937">project C  ○ idle</text>
-    <text x="450" y="240" font-size="13" fill="#ffffff" text-anchor="middle">sub-agents count as workers</text>
+    <!-- Box 2: session table -->
+    <rect x="286" y="60" width="280" height="240" rx="12" fill="#2a7a70"/>
+    <text x="426" y="92" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">Session table</text>
+    <rect x="304" y="104" width="244" height="32" rx="6" fill="#ffffff"/>
+    <text x="316" y="125" font-size="14" fill="#1f2937">Project A: working</text>
+    <rect x="304" y="144" width="244" height="32" rx="6" fill="#ffffff"/>
+    <text x="316" y="165" font-size="14" fill="#1f2937">Project B: waiting for you</text>
+    <rect x="304" y="184" width="244" height="32" rx="6" fill="#ffffff"/>
+    <text x="316" y="205" font-size="14" fill="#1f2937">Project C: idle</text>
+    <text x="426" y="240" font-size="13" fill="#ffffff" text-anchor="middle">Sub-agents count as workers</text>
+    <text x="426" y="258" font-size="13" fill="#ffffff" text-anchor="middle">A session waiting for you stays</text>
+    <text x="426" y="276" font-size="13" fill="#ffffff" text-anchor="middle">awake for Sleep after (default 5 min)</text>
 
-    <!-- Box: sleep assertion -->
-    <rect x="640" y="70" width="230" height="120" rx="12" fill="#c2410c"/>
-    <text x="755" y="104" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">Sleep assertion</text>
-    <text x="755" y="130" font-size="14" fill="#ffffff" text-anchor="middle">PreventUserIdleSystemSleep</text>
-    <text x="755" y="152" font-size="14" fill="#ffffff" text-anchor="middle">held while anything works</text>
+    <!-- Box 3: sleep assertion -->
+    <rect x="620" y="60" width="256" height="130" rx="12" fill="#c2410c"/>
+    <text x="748" y="92" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">Sleep assertion</text>
+    <text x="748" y="118" font-size="13" fill="#ffffff" text-anchor="middle">PreventUserIdleSystemSleep</text>
+    <text x="748" y="138" font-size="13" fill="#ffffff" text-anchor="middle">held while anything works,</text>
+    <text x="748" y="156" font-size="13" fill="#ffffff" text-anchor="middle">released when all are idle</text>
 
-    <!-- Guards box -->
-    <rect x="640" y="220" width="230" height="130" rx="12" fill="#64748b"/>
-    <text x="755" y="250" font-size="17" font-weight="700" fill="#ffffff" text-anchor="middle">Guards allow sleep</text>
-    <text x="755" y="276" font-size="14" fill="#ffffff" text-anchor="middle">battery below 20%</text>
-    <text x="755" y="298" font-size="14" fill="#ffffff" text-anchor="middle">Mac too hot</text>
-    <text x="755" y="320" font-size="14" fill="#ffffff" text-anchor="middle">paused or Off mode</text>
+    <!-- Box 4: guards -->
+    <rect x="620" y="220" width="256" height="130" rx="12" fill="#475569"/>
+    <text x="748" y="248" font-size="17" font-weight="700" fill="#ffffff" text-anchor="middle">Guards allow sleep</text>
+    <text x="748" y="272" font-size="13" fill="#ffffff" text-anchor="middle">Battery 20% or lower</text>
+    <text x="748" y="290" font-size="13" fill="#ffffff" text-anchor="middle">(resumes at 25% or on charger)</text>
+    <text x="748" y="308" font-size="13" fill="#ffffff" text-anchor="middle">Mac running too hot</text>
+    <text x="748" y="326" font-size="13" fill="#ffffff" text-anchor="middle">Paused, or Mode Off</text>
 
-    <!-- Fallback box -->
-    <rect x="330" y="290" width="240" height="60" rx="12" fill="#8a6d3b"/>
-    <text x="450" y="315" font-size="14" font-weight="600" fill="#ffffff" text-anchor="middle">Fallback: watch transcript</text>
-    <text x="450" y="337" font-size="13" fill="#ffffff" text-anchor="middle">files when hooks are missing</text>
+    <!-- Box 5: fallbacks -->
+    <rect x="286" y="340" width="280" height="112" rx="12" fill="#8a6d3b"/>
+    <text x="426" y="364" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">Fallbacks</text>
+    <text x="426" y="384" font-size="13" fill="#ffffff" text-anchor="middle">Busy child processes (long builds)</text>
+    <text x="426" y="402" font-size="13" fill="#ffffff" text-anchor="middle">keep holding</text>
+    <text x="426" y="420" font-size="13" fill="#ffffff" text-anchor="middle">No hooks? Transcript files are watched</text>
+    <text x="426" y="438" font-size="13" fill="#ffffff" text-anchor="middle">Sub-agents silent for 3 min are dropped</text>
 
     <!-- Arrows -->
-    <path d="M 240 130 L 326 130" stroke="#334155" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
-    <text x="283" y="120" font-size="12" fill="#334155" text-anchor="middle">events</text>
-    <path d="M 570 130 L 636 130" stroke="#334155" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
-    <text x="603" y="120" font-size="12" fill="#334155" text-anchor="middle">hold / release</text>
-    <path d="M 640 285 L 574 285" stroke="#334155" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
-    <path d="M 450 290 L 450 252" stroke="#334155" stroke-width="2.5" fill="none" stroke-dasharray="6 5" marker-end="url(#arr)"/>
-    <path d="M 755 220 L 755 196" stroke="#334155" stroke-width="2.5" fill="none" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+    <path d="M 238 160 L 282 160" stroke="#334155" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
+    <text x="260" y="150" font-size="12" fill="#334155" text-anchor="middle">events</text>
+    <path d="M 566 130 L 616 130" stroke="#334155" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
+    <text x="591" y="120" font-size="12" fill="#334155" text-anchor="middle">hold</text>
+    <path d="M 748 220 L 748 194" stroke="#334155" stroke-width="2.5" fill="none" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+    <path d="M 426 340 L 426 304" stroke="#334155" stroke-width="2.5" fill="none" stroke-dasharray="6 5" marker-end="url(#arr)"/>
   </g>
 </svg>
