@@ -1,6 +1,7 @@
 import Foundation
 
-/// Parses Claude Code hook JSON (HTTP hook body). Re-verify against current hooks docs: formats change.
+/// Parses hook JSON (HTTP hook body) from Claude Code or Codex. Event names and the common fields (`session_id`,
+/// `cwd`, `transcript_path`, `hook_event_name`) were checked against the OpenAI Codex hooks docs. Re-verify when agents change.
 public enum HookPayload {
     public static func parse(_ data: Data) -> (session: String, event: AgentEvent, cwd: String?, transcript: String?)? {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -8,6 +9,15 @@ public enum HookPayload {
         let session = (obj["session_id"] as? String) ?? "unknown"
         let cwd = obj["cwd"] as? String
         return (session, classify(name, obj), cwd, obj["transcript_path"] as? String)
+    }
+
+    /// Which agent sent an event, from where its transcript lives: `~/.codex/...` or `~/.claude/...`.
+    /// Nil when the payload has no transcript path, so the caller decides the fallback.
+    public static func agent(transcript: String?) -> String? {
+        guard let transcript, !transcript.isEmpty else { return nil }
+        if transcript.contains("/.codex/") { return "codex" }
+        if transcript.contains("/.claude/") { return "claude" }
+        return nil
     }
 
     private static func classify(_ name: String, _ obj: [String: Any]) -> AgentEvent {

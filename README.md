@@ -65,17 +65,52 @@ Builds made by `scripts/build-app.sh` are ad-hoc signed and **not notarized by A
 
 Only do this for a build you built yourself or got from a source you trust.
 
+### Install with Homebrew (not available yet)
+
+A source-built Homebrew formula is prepared in [`packaging/homebrew/`](packaging/homebrew/README.md). It needs Xcode 15 or later and builds on your Mac, so Apple signing is not involved. **This does not work yet.** It works only after the owner publishes the tap repository `KaushikDas9/homebrew-wakeloop`. Until then, use build from source above.
+
+Once the tap is published:
+
+```sh
+brew tap KaushikDas9/wakeloop
+brew install wakeloop
+```
+
+The formula installs the `wakeloop` CLI and keeps `Wakeloop.app` in Homebrew's opt directory. Its caveats show how to link the app into `/Applications`.
+
 ### Connect Claude Code
+
+Open the Wakeloop menu, go to **Settings**, and choose **Set up Claude Code hooks…**. Wakeloop shows what it will change and asks you to confirm. It adds its hook entries to `~/.claude/settings.json`, keeps your other hooks where they are, and saves a timestamped backup next to the file first. Running it again changes nothing. To undo it, choose **Remove Claude Code hooks…**. Only Wakeloop's own entries are removed.
+
+If your settings file is not valid JSON, Wakeloop refuses to touch it and tells you why. A read-only file is refused the same way.
+
+Prefer to do it by hand? Print the config and merge it into your settings yourself:
 
 ```sh
 wakeloop hook-snippet claude
 ```
 
-This prints the hooks config for Claude Code settings. Merge it into your settings by hand. Wakeloop never edits your agent config. The `wakeloop` CLI is inside the app at `Wakeloop.app/Contents/Resources/bin/wakeloop`. The app must be running for the CLI to work.
+The first time you open Wakeloop, a short setup guide opens. It covers the hooks, optional lid-closed mode, optional Codex hooks, and a check that an agent can reach Wakeloop. Reopen it any time from **Settings > Show setup guide…**.
+
+The `wakeloop` CLI is inside the app at `Wakeloop.app/Contents/Resources/bin/wakeloop`. The app must be running for the CLI to work.
+
+### Connect Codex (built, not yet live-tested)
+
+Codex hook setup is in the app, but it has not been tested with a live Codex session yet, so Codex is not a supported agent. The steps are the same as for Claude Code: **Settings > Set up Codex hooks…** adds Wakeloop's entries to `~/.codex/hooks.json`, keeping your other hooks, with a backup first. **Settings > Remove Codex hooks…** removes only Wakeloop's entries.
+
+Codex also needs you to trust new hooks before it runs them. Open Codex, run `/hooks`, and trust Wakeloop's entries. Codex skips untrusted hooks, and it trusts each hook by its current contents, so changing a hook means trusting it again.
+
+Or print the config and merge it yourself:
+
+```sh
+wakeloop hook-snippet codex
+```
 
 ## Features
 
-- Claude Code is the only supported agent for now.
+- Claude Code is the only supported agent for now. Codex hook setup is built but not yet live-tested.
+- One-click Claude Code hook setup in Settings, with Remove. Keeps your other hooks and backs up the settings file first.
+- First-run setup guide with live status: the hooks, optional lid-closed setup, and a "Connected" check that turns green after your first Claude Code prompt. It opens once and can be reopened from Settings.
 - Holds the Mac awake while a Claude Code session is working. In Auto mode it also keeps holding while a child process of the agent is busy, such as a long build or test run.
 - Counts working agents in the menu bar, with project names and sub-agents listed under each project.
 - Falls back to watching recently written session transcript files if the hooks are missing.
@@ -94,7 +129,7 @@ This prints the hooks config for Claude Code settings. Merge it into your settin
 - Max hold: an automatic hold is released after 8 hours with no agent event or transcript write (Settings, "Max hold": 4, 8, 12 hours or Off). A notification says so. The next agent event brings the hold back. Always on and manual holds are not capped.
 - Pause and Off release the hold.
 - A sub-agent whose transcript has not been written for 3 minutes is dropped, since it was probably stopped. Any sub-agent still listed after 1 hour is dropped too.
-- Wakeloop does not change your agent configuration. You merge the hooks yourself.
+- Wakeloop changes `~/.claude/settings.json` or `~/.codex/hooks.json` only when you choose Set up or Remove. It adds or removes only its own hook entries, backs the file up first, and never overwrites a file it cannot parse.
 
 ## Lid-closed mode (optional)
 
@@ -115,9 +150,9 @@ Charger only is the default because it is the safer choice. Prefer the terminal?
 
 Wakeloop is an early pre-release (v0.1.0).
 
-- **Agents:** Claude Code only. Codex detection is in place but has not been live-tested, so it is not supported yet.
+- **Agents:** Claude Code only. Codex detection and one-click hook setup are built but have not been live-tested, so Codex is not supported yet.
 - **Live-tested on the author's Mac:** building and launching the app, the hook server, Claude Code hooks, the working-agent count, project names, sub-agent tracking, the menu, modes, lid-closed setup, and lid-closed mode on the charger.
-- **Not yet live-tested:** the "Sleep after" timeout, the max hold and crashed-session expiry, the battery guard, launch at login, the global shortcuts, lid-closed mode on battery, and process-tree behaviour (keeping the Mac awake while a child process runs).
+- **Not yet live-tested:** the in-app hook setup and removal, the Codex hooks (setup, `/hooks` trust, prompt holds, Stop and Esc release), the setup guide, the "Sleep after" timeout, the max hold and crashed-session expiry, the battery guard, launch at login, the global shortcuts, lid-closed mode on battery, and process-tree behaviour (keeping the Mac awake while a child process runs).
 - The unit tests run with `swift test`.
 
 ## Support
