@@ -41,11 +41,11 @@ struct HookInstallerTests {
         try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.contains(".wakeloop-backup-") }
     }
 
-    private enum Kind { case unexpectedShape, readOnly }
+    private enum Kind { case unexpectedShape, readOnly, invalidJSON }
 
     private func isFailure(_ error: Error, _ expected: Kind) -> Bool {
         switch (error as? HookInstaller.Failure, expected) {
-        case (.unexpectedShape?, .unexpectedShape), (.readOnly?, .readOnly): return true
+        case (.unexpectedShape?, .unexpectedShape), (.readOnly?, .readOnly), (.invalidJSON?, .invalidJSON): return true
         default: return false
         }
     }
@@ -223,5 +223,129 @@ struct HookInstallerTests {
         #expect(try installer().status() == .partial(installed: 6, total: 8))
         try installer().install()
         #expect(try installer().status() == .installed)
+    }
+
+    // MARK: - Codex (~/.codex/hooks.json)
+
+    private func codexInstaller(at second: TimeInterval = 0) -> HookInstaller {
+        HookInstaller.codex(settingsURL: settings, now: { Date(timeIntervalSince1970: 1_700_000_000 + second) })
+    }
+
+    @Test func codexFreshFileGetsOnlyCodexEventsWithTimeout3() throws {
+        #expect(try codexInstaller().status() == .notInstalled)
+        #expect(try codexInstaller().install() == .changed(backup: nil))
+        let hooks = try #require(try json()["hooks"] as? [String: Any])
+        #expect(Set(hooks.keys) == Set(HookSnippet.codexEvents))
+        #expect(hooks["Notification"] == nil)
+        #expect(hooks["SubagentStart"] == nil)
+        for event in HookSnippet.codexEvents {
+            let g = groups(try json(), event)
+            #expect(g.count == 1, "\(event)")
+            let entry = (g.first?["hooks"] as? [[String: Any]])?.first
+            #expect(entry?["command"] as? String == HookSnippet.command)
+            #expect(entry?["timeout"] as? Int == 3)
+        }
+        #expect(try codexInstaller().status() == .installed)
+    }
+
+    @Test func codexMergeKeepsUserHooksDescriptionAndOrder() throws {
+        try write("""
+        {
+          "description": "mine",
+          "hooks": {
+            "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": "guard.sh", "timeout": 30 }] }],
+            "Stop": [{ "hooks": [{ "type": "command", "command": "say done" }] }]
+          }
+        }
+        """)
+        try codexInstaller().install()
+        let root = try json()
+        #expect(root["description"] as? String == "mine")
+        #expect(groups(root, "PreToolUse").count == 1)
+        let stop = groups(root, "Stop")
+        #expect(stop.count == 2)
+        #expect(command(ofGroup: stop.first ?? [:]) == "say done")
+        #expect(command(ofGroup: stop.last ?? [:]) == HookSnippet.command)
+    }
+
+    @Test func codexInstallIsIdempotent() throws {
+        try codexInstaller().install()
+        let before = try read()
+        #expect(try codexInstaller().install() == .unchanged)
+        #expect(try read() == before)
+        #expect(try backups().isEmpty)
+    }
+
+    @Test func codexRemoveDeletesOnlyOursAndKeepsUserHooks() throws {
+        try write("{\"description\": \"mine\", \"hooks\": {\"Stop\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"say done\"}]}]}}")
+        try codexInstaller().install()
+        guard case .changed(let backup) = try codexInstaller().remove() else {
+            Issue.record("expected a change"); return
+        }
+        #expect(backup != nil)
+        let root = try json()
+        #expect(root["description"] as? String == "mine")
+        let stop = groups(root, "Stop")
+        #expect(stop.count == 1)
+        #expect(command(ofGroup: stop.first ?? [:]) == "say done")
+        #expect(try codexInstaller().status() == .notInstalled)
+    }
+
+    @Test func codexRemoveLeavesEmptyFileWithNoHooksKey() throws {
+        try codexInstaller().install()
+        try codexInstaller().remove()
+        #expect(try json()["hooks"] == nil)
+    }
+
+    @Test func codexPartialInstallIsDetectedAndCompleted() throws {
+        try codexInstaller().install()
+        var root = try json()
+        var hooks = root["hooks"] as? [String: Any] ?? [:]
+        hooks.removeValue(forKey: "Stop")
+        root["hooks"] = hooks
+        try JSONSerialization.data(withJSONObject: root).write(to: settings)
+        #expect(try codexInstaller().status() == .partial(installed: 5, total: 6))
+        try codexInstaller().install()
+        #expect(try codexInstaller().status() == .installed)
+    }
+
+    @Test func codexInvalidJSONIsRefusedAndNotTouched() throws {
+        let text = "{ hooks: nope"
+        try write(text)
+        do {
+            try codexInstaller().install()
+            Issue.record("expected a refusal")
+        } catch {
+            #expect(isFailure(error, .invalidJSON))
+        }
+        #expect(try read() == text)
+        #expect(try backups().isEmpty)
+    }
+
+    @Test func codexReadOnlyFileIsRefusedAndNotTouched() throws {
+        let text = "{\"description\": \"mine\"}"
+        try write(text)
+        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: settings.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: settings.path) }
+        do {
+            try codexInstaller().install()
+            Issue.record("expected a refusal")
+        } catch {
+            #expect(isFailure(error, .readOnly))
+        }
+        #expect(try read() == text)
+    }
+
+    @Test func codexInstallDoesNotTouchClaudeSettings() throws {
+        let claudeFile = dir.appendingPathComponent("claude-settings.json")
+        try codexInstaller().install()
+        let claude = HookInstaller(settingsURL: claudeFile)
+        #expect(try claude.status() == .notInstalled)
+        #expect(!FileManager.default.fileExists(atPath: claudeFile.path))
+    }
+
+    @Test func defaultCodexURLIsHomeCodexHooksJson() {
+        #expect(HookInstaller.defaultCodexURL.path.hasSuffix("/.codex/hooks.json"))
+        #expect(HookInstaller.defaultSettingsURL.path.hasSuffix("/.claude/settings.json"))
     }
 }

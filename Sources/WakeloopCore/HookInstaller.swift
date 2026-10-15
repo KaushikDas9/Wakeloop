@@ -1,8 +1,8 @@
 import Foundation
 
-/// Adds and removes Wakeloop's Claude Code hooks in `~/.claude/settings.json`.
-/// Other hooks and settings are kept, and their order is kept. A backup is written before any change.
-/// Invalid JSON and read-only files are refused, never overwritten.
+/// Adds and removes Wakeloop's hooks in an agent's hooks file: `~/.claude/settings.json` for Claude Code,
+/// `~/.codex/hooks.json` for Codex. Other hooks and settings are kept, and their order is kept. A backup is written
+/// before any change. Invalid JSON and read-only files are refused, never overwritten.
 public struct HookInstaller {
     public enum Status: Equatable {
         case notInstalled
@@ -38,25 +38,42 @@ public struct HookInstaller {
     }
 
     public let settingsURL: URL
+    /// The events Wakeloop manages in this file, and the timeout written to each entry.
+    public let events: [String]
+    public let timeout: Int
     private let now: () -> Date
 
-    public init(settingsURL: URL = HookInstaller.defaultSettingsURL, now: @escaping () -> Date = { Date() }) {
+    public init(settingsURL: URL = HookInstaller.defaultSettingsURL,
+                events: [String] = HookSnippet.claudeEvents,
+                timeout: Int = HookSnippet.claudeTimeout,
+                now: @escaping () -> Date = { Date() }) {
         self.settingsURL = settingsURL
+        self.events = events
+        self.timeout = timeout
         self.now = now
+    }
+
+    /// The installer for Codex's `~/.codex/hooks.json`.
+    public static func codex(settingsURL: URL = HookInstaller.defaultCodexURL, now: @escaping () -> Date = { Date() }) -> HookInstaller {
+        HookInstaller(settingsURL: settingsURL, events: HookSnippet.codexEvents, timeout: HookSnippet.codexTimeout, now: now)
     }
 
     public static var defaultSettingsURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     }
 
+    public static var defaultCodexURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/hooks.json")
+    }
+
     public func status() throws -> Status {
         let (root, _) = try readSettings()
         let hooks = try hooksDictionary(root)
         var installed = 0
-        for event in HookSnippet.claudeEvents where try groups(in: hooks, event: event).contains(where: Self.containsOurs) {
+        for event in events where try groups(in: hooks, event: event).contains(where: Self.containsOurs) {
             installed += 1
         }
-        let total = HookSnippet.claudeEvents.count
+        let total = events.count
         if installed == 0 { return .notInstalled }
         return installed == total ? .installed : .partial(installed: installed, total: total)
     }
@@ -68,10 +85,10 @@ public struct HookInstaller {
         var root = original
         var hooks = try hooksDictionary(root)
         var changed = false
-        for event in HookSnippet.claudeEvents {
+        for event in events {
             var groups = try groups(in: hooks, event: event)
             if groups.contains(where: Self.containsOurs) { continue }
-            groups.append(HookSnippet.group())
+            groups.append(HookSnippet.group(timeout: timeout))
             hooks[event] = groups
             changed = true
         }
@@ -87,7 +104,7 @@ public struct HookInstaller {
         var root = original
         var hooks = try hooksDictionary(root)
         var changed = false
-        for event in HookSnippet.claudeEvents {
+        for event in events {
             let groups = try groups(in: hooks, event: event)
             guard groups.contains(where: Self.containsOurs) else { continue }
             changed = true

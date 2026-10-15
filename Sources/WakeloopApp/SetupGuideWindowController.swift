@@ -5,9 +5,12 @@ import WakeloopCore
 protocol SetupGuideHost: AnyObject {
     var lidSetUp: Bool { get }
     var hookServerListening: Bool { get }
-    var claudeConnected: Bool { get }
+    /// Display names of the agents whose events have reached the hook server.
+    var connectedAgents: [String] { get }
     func readClaudeHooks() -> Result<HookInstaller.Status, Error>
+    func readCodexHooks() -> Result<HookInstaller.Status, Error>
     @discardableResult func setupClaudeHooks() -> Bool
+    @discardableResult func setupCodexHooks() -> Bool
     func openLidWindow()
 }
 
@@ -18,6 +21,9 @@ final class SetupGuideWindowController: NSObject, NSWindowDelegate {
     private let hooksIcon = NSImageView()
     private let hooksStatus = NSTextField(labelWithString: "")
     private let hooksButton = NSButton(title: "Set up…", target: nil, action: nil)
+    private let codexIcon = NSImageView()
+    private let codexStatus = NSTextField(labelWithString: "")
+    private let codexButton = NSButton(title: "Set up…", target: nil, action: nil)
     private let lidIcon = NSImageView()
     private let lidStatus = NSTextField(labelWithString: "")
     private let serverIcon = NSImageView()
@@ -34,10 +40,12 @@ final class SetupGuideWindowController: NSObject, NSWindowDelegate {
 
         let heading = NSTextField(labelWithString: "Set up Wakeloop")
         heading.font = .boldSystemFont(ofSize: 18)
-        let intro = wrapping("Three steps. The status updates as you go.", size: 12, color: .secondaryLabelColor)
+        let intro = wrapping("Step 1 is needed for Claude Code. Steps 2 and 4 are optional. The status updates as you go.", size: 12, color: .secondaryLabelColor)
 
         hooksButton.target = self
         hooksButton.action = #selector(setUpHooks)
+        codexButton.target = self
+        codexButton.action = #selector(setUpCodexHooks)
         let lidButton = NSButton(title: "Open lid-closed setup…", target: self, action: #selector(openLid))
         let done = NSButton(title: "Done", target: self, action: #selector(closeGuide))
         done.keyEquivalent = "\r"
@@ -49,14 +57,17 @@ final class SetupGuideWindowController: NSObject, NSWindowDelegate {
                          body: "Keeps your Mac awake with the lid closed. Needs your administrator password once. Skip this if you never close the lid while an agent works.",
                          rows: [statusRow(lidIcon, lidStatus), row([lidButton])])
         let step3 = step(3, title: "Check",
-                         body: "Confirms that Claude Code can reach Wakeloop.",
+                         body: "Confirms that an agent can reach Wakeloop.",
                          rows: [
                             statusRow(serverIcon, serverStatus),
                             statusRow(connectedIcon, connectedStatus),
-                            wrapping("Send a prompt in Claude Code to test it.", size: 11, color: .secondaryLabelColor),
+                            wrapping("Send a prompt in Claude Code or Codex to test it.", size: 11, color: .secondaryLabelColor),
                          ])
+        let step4 = step(4, title: "Codex (optional)",
+                         body: "Only if you use the Codex CLI. Adds Wakeloop's entries to ~/.codex/hooks.json. Codex then needs you to trust them once: open Codex, run /hooks, and trust Wakeloop's entries.",
+                         rows: [statusRow(codexIcon, codexStatus), row([codexButton])])
 
-        let root = NSStackView(views: [heading, intro, step1, step2, step3, row([done])])
+        let root = NSStackView(views: [heading, intro, step1, step2, step3, step4, row([done])])
         root.orientation = .vertical
         root.alignment = .leading
         root.spacing = 16
@@ -84,23 +95,8 @@ final class SetupGuideWindowController: NSObject, NSWindowDelegate {
     }
 
     private func refresh() {
-        switch host.readClaudeHooks() {
-        case .success(.installed):
-            mark(hooksIcon, hooksStatus, done: true, text: "Installed")
-            hooksButton.isHidden = true
-        case .success(.partial(let installed, let total)):
-            mark(hooksIcon, hooksStatus, done: false, text: "Partly installed (\(installed) of \(total))")
-            hooksButton.title = "Finish setup…"
-            hooksButton.isHidden = false
-        case .success(.notInstalled):
-            mark(hooksIcon, hooksStatus, done: false, text: "Not installed")
-            hooksButton.title = "Set up…"
-            hooksButton.isHidden = false
-        case .failure(let error):
-            mark(hooksIcon, hooksStatus, done: false, text: error.localizedDescription)
-            hooksButton.title = "Try again…"
-            hooksButton.isHidden = false
-        }
+        refreshHooks(host.readClaudeHooks(), icon: hooksIcon, label: hooksStatus, button: hooksButton)
+        refreshHooks(host.readCodexHooks(), icon: codexIcon, label: codexStatus, button: codexButton)
 
         let lidSetUp = host.lidSetUp
         mark(lidIcon, lidStatus, done: lidSetUp, text: lidSetUp ? "Set up" : "Not set up (optional)")
@@ -110,11 +106,33 @@ final class SetupGuideWindowController: NSObject, NSWindowDelegate {
              text: listening ? "Hook server is listening on 127.0.0.1:\(wakeloopPort)"
                              : "Hook server is not listening. Another copy of Wakeloop may be running.")
 
-        let connected = host.claudeConnected
+        let agents = host.connectedAgents
+        let connected = !agents.isEmpty
         mark(connectedIcon, connectedStatus, done: connected,
-             text: connected ? "Connected" : "Waiting for your first Claude Code prompt",
+             text: connected ? "Connected: \(agents.joined(separator: ", "))" : "Waiting for your first Claude Code or Codex prompt",
              color: connected ? .systemGreen : nil)
         window.setContentSize(NSSize(width: 460, height: window.contentView?.fittingSize.height ?? 400))
+    }
+
+    /// One agent's hooks row: its status text, and the button that sets up or finishes setup.
+    private func refreshHooks(_ result: Result<HookInstaller.Status, Error>, icon: NSImageView, label: NSTextField, button: NSButton) {
+        switch result {
+        case .success(.installed):
+            mark(icon, label, done: true, text: "Installed")
+            button.isHidden = true
+        case .success(.partial(let installed, let total)):
+            mark(icon, label, done: false, text: "Partly installed (\(installed) of \(total))")
+            button.title = "Finish setup…"
+            button.isHidden = false
+        case .success(.notInstalled):
+            mark(icon, label, done: false, text: "Not installed")
+            button.title = "Set up…"
+            button.isHidden = false
+        case .failure(let error):
+            mark(icon, label, done: false, text: error.localizedDescription)
+            button.title = "Try again…"
+            button.isHidden = false
+        }
     }
 
     /// Icon and text for one status line. `color` overrides the text colour (green for Connected).
@@ -168,6 +186,11 @@ final class SetupGuideWindowController: NSObject, NSWindowDelegate {
 
     @objc private func setUpHooks() {
         host.setupClaudeHooks()
+        refresh()
+    }
+
+    @objc private func setUpCodexHooks() {
+        host.setupCodexHooks()
         refresh()
     }
 

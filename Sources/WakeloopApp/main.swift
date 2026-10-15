@@ -6,6 +6,25 @@ import WakeloopCore
 
 enum Mode: String { case auto, on, off }
 
+/// One agent's hooks file, as the setup, remove and guide flows see it.
+struct AgentHookSetup {
+    let name: String
+    let installer: HookInstaller
+    let events: [String]
+    /// Shown in the confirmation and after a successful setup. Nil when the agent needs nothing more.
+    let trustNote: String?
+    let menuHint: String
+
+    static let claude = AgentHookSetup(
+        name: "Claude Code", installer: HookInstaller(), events: HookSnippet.claudeEvents, trustNote: nil,
+        menuHint: "Adds Wakeloop's hooks to ~/.claude/settings.json and keeps your other hooks. Remove them the same way.")
+
+    static let codex = AgentHookSetup(
+        name: "Codex", installer: HookInstaller.codex(), events: HookSnippet.codexEvents,
+        trustNote: "Codex also needs you to trust the hooks once. Open Codex, run /hooks, and trust Wakeloop's entries. Until you do, Codex skips them.",
+        menuHint: "Adds Wakeloop's hooks to ~/.codex/hooks.json and keeps your other hooks. Then trust them with /hooks in Codex.")
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHost, SetupGuideHost {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let power = PowerManager()
@@ -33,9 +52,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
     private var whyWindow: NSWindow?
     private var whyText: NSTextView?
     private lazy var lidWindow = LidWindowController(host: self)
-    private let hookInstaller = HookInstaller()
-    // Result of the last read of ~/.claude/settings.json, taken on each refresh.
+    private let claudeSetup = AgentHookSetup.claude
+    private let codexSetup = AgentHookSetup.codex
+    // Results of the last read of each agent's hooks file, taken on each refresh.
     private(set) var claudeHooks: Result<HookInstaller.Status, Error> = .success(.notInstalled)
+    private(set) var codexHooks: Result<HookInstaller.Status, Error> = .success(.notInstalled)
     private lazy var setupGuide = SetupGuideWindowController(host: self)
     private let lid = LidManager()
     private var lidFailed = false
@@ -94,11 +115,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
 
     var hookServerListening: Bool { server?.isListening ?? false }
 
-    /// Set by the first Claude Code hook event. Any agent event that reaches the hook server counts.
-    var claudeConnected: Bool { defaults.bool(forKey: "claudeEventSeen") }
+    /// Agents whose hook events have reached the server, by display name. Set by the first event from each agent.
+    /// An event with no transcript path is taken to be Claude Code, as before Codex support.
+    var connectedAgents: [String] {
+        var names: [String] = []
+        if defaults.bool(forKey: "claudeEventSeen") { names.append(claudeSetup.name) }
+        if defaults.bool(forKey: "codexEventSeen") { names.append(codexSetup.name) }
+        return names
+    }
 
     func readClaudeHooks() -> Result<HookInstaller.Status, Error> {
-        Result { try hookInstaller.status() }
+        Result { try claudeSetup.installer.status() }
+    }
+
+    func readCodexHooks() -> Result<HookInstaller.Status, Error> {
+        Result { try codexSetup.installer.status() }
     }
 
     func openLidWindow() {
@@ -115,7 +146,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         case .event(let session, let event, let cwd, let transcript):
             tracker.apply(event, session: session, cwd: cwd, transcript: transcript)
             holdCap.activity()
-            defaults.set(true, forKey: "claudeEventSeen")
+            let agent = HookPayload.agent(transcript: transcript) ?? "claude"
+            defaults.set(true, forKey: "\(agent)EventSeen")
         case .hold(let secs): manualUntil = Date().addingTimeInterval(secs)
         case .done: manualUntil = nil
         }
@@ -171,19 +203,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         inform("Wakeloop", text)
     }
 
-    /// Confirms, then merges Wakeloop's hooks into ~/.claude/settings.json. Returns true when they are in place.
+    /// Confirms, then merges Wakeloop's hooks into the agent's hooks file. Returns true when they are in place.
     @discardableResult
-    func setupClaudeHooks() -> Bool {
-        guard confirm("Set up Claude Code hooks",
-                      "Wakeloop will add its hooks to \(HookInstaller.defaultSettingsURL.path) for these events: \(HookSnippet.claudeEvents.joined(separator: ", ")).\n\nYour other hooks and settings stay as they are. Wakeloop saves a backup of the file next to it first.",
+    func setupHooks(_ agent: AgentHookSetup) -> Bool {
+        guard confirm("Set up \(agent.name) hooks",
+                      "Wakeloop will add its hooks to \(agent.installer.settingsURL.path) for these events: \(agent.events.joined(separator: ", ")).\n\nYour other hooks and settings stay as they are. Wakeloop saves a backup of the file next to it first." + (agent.trustNote.map { "\n\n" + $0 } ?? ""),
                       button: "Set up") else { return false }
         defer { refresh() }
         do {
-            switch try hookInstaller.install() {
+            switch try agent.installer.install() {
             case .changed(let backup):
-                inform("Claude Code hooks are set up.", backup.map { "A backup was saved as \($0.lastPathComponent)." } ?? "")
+                let backupNote = backup.map { "A backup was saved as \($0.lastPathComponent)." } ?? ""
+                inform("\(agent.name) hooks are set up.", [backupNote, agent.trustNote ?? ""].filter { !$0.isEmpty }.joined(separator: "\n\n"))
             case .unchanged:
-                inform("Claude Code hooks are already set up.")
+                inform("\(agent.name) hooks are already set up.")
             }
             return true
         } catch {
@@ -194,15 +227,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
 
     /// Confirms, then removes only Wakeloop's hook entries. Returns true when none are left.
     @discardableResult
-    func removeClaudeHooks() -> Bool {
-        guard confirm("Remove Claude Code hooks",
-                      "Wakeloop will remove its hook entries from \(HookInstaller.defaultSettingsURL.path). Your other hooks stay as they are. Wakeloop saves a backup of the file first.\n\nWithout the hooks, Wakeloop still watches transcripts and busy processes, but it sees Claude Code sessions later and less reliably.",
+    func removeHooks(_ agent: AgentHookSetup) -> Bool {
+        guard confirm("Remove \(agent.name) hooks",
+                      "Wakeloop will remove its hook entries from \(agent.installer.settingsURL.path). Your other hooks stay as they are. Wakeloop saves a backup of the file first.\n\nWithout the hooks, Wakeloop still watches transcripts and busy processes, but it sees \(agent.name) sessions later and less reliably.",
                       button: "Remove") else { return false }
         defer { refresh() }
         do {
-            switch try hookInstaller.remove() {
+            switch try agent.installer.remove() {
             case .changed(let backup):
-                inform("Claude Code hooks are removed.", backup.map { "A backup was saved as \($0.lastPathComponent)." } ?? "")
+                inform("\(agent.name) hooks are removed.", backup.map { "A backup was saved as \($0.lastPathComponent)." } ?? "")
             case .unchanged:
                 inform("No Wakeloop hooks were found.")
             }
@@ -213,17 +246,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         }
     }
 
-    @objc private func toggleClaudeHooks() {
-        if case .success(.installed) = claudeHooks {
-            removeClaudeHooks()
+    @discardableResult
+    func setupClaudeHooks() -> Bool { setupHooks(claudeSetup) }
+
+    @discardableResult
+    func setupCodexHooks() -> Bool { setupHooks(codexSetup) }
+
+    @objc private func toggleClaudeHooks() { toggleHooks(claudeSetup, claudeHooks) }
+
+    @objc private func toggleCodexHooks() { toggleHooks(codexSetup, codexHooks) }
+
+    private func toggleHooks(_ agent: AgentHookSetup, _ status: Result<HookInstaller.Status, Error>) {
+        if case .success(.installed) = status {
+            removeHooks(agent)
         } else {
-            setupClaudeHooks()
+            setupHooks(agent)
         }
     }
 
-    private var claudeHookSubtitle: String {
-        switch claudeHooks {
-        case .success(.installed): return "Installed"
+    /// A Settings item that sets up or removes one agent's hooks, with the current state as its subtitle.
+    private func hooksMenuItem(_ agent: AgentHookSetup, status: Result<HookInstaller.Status, Error>, action: Selector) -> NSMenuItem {
+        let installed: Bool = { if case .success(.installed) = status { return true } else { return false } }()
+        let item = NSMenuItem(title: installed ? "Remove \(agent.name) hooks…" : "Set up \(agent.name) hooks…",
+                              action: action, keyEquivalent: "")
+        item.target = self
+        hint(item, subtitle: Self.hookSubtitle(agent, status), fallback: agent.menuHint)
+        return item
+    }
+
+    static func hookSubtitle(_ agent: AgentHookSetup, _ status: Result<HookInstaller.Status, Error>) -> String {
+        switch status {
+        case .success(.installed): return agent.trustNote == nil ? "Installed" : "Installed. Trust it with /hooks in \(agent.name)."
         case .success(.partial(let installed, let total)): return "Partly installed (\(installed) of \(total))"
         case .success(.notInstalled): return "Not installed"
         case .failure: return "Settings file needs attention"
@@ -490,6 +543,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         let transcripts = SessionFiles.recentlyActive(SessionFiles.scan())
         lock.lock()
         claudeHooks = readClaudeHooks()
+        codexHooks = readCodexHooks()
         let lastWrite: (String) -> Date? = { path in
             (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
         }
@@ -667,13 +721,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
              fallback: "Releases the Mac's hold when no agent event or transcript write has come for this long, so a stuck agent cannot keep the Mac awake all night. A new agent event brings the hold back.")
         settingsMenu.addItem(maxHoldItem)
 
-        let hooksInstalled: Bool = { if case .success(.installed) = claudeHooks { return true } else { return false } }()
-        let hooksItem = NSMenuItem(title: hooksInstalled ? "Remove Claude Code hooks…" : "Set up Claude Code hooks…",
-                                   action: #selector(toggleClaudeHooks), keyEquivalent: "")
-        hooksItem.target = self
-        hint(hooksItem, subtitle: claudeHookSubtitle,
-             fallback: "Adds Wakeloop's hooks to ~/.claude/settings.json and keeps your other hooks. Remove them the same way.")
-        settingsMenu.addItem(hooksItem)
+        settingsMenu.addItem(hooksMenuItem(claudeSetup, status: claudeHooks, action: #selector(toggleClaudeHooks)))
+        settingsMenu.addItem(hooksMenuItem(codexSetup, status: codexHooks, action: #selector(toggleCodexHooks)))
 
         let login = NSMenuItem(title: "Launch at login", action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self
