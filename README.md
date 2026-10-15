@@ -28,7 +28,7 @@ A session that is waiting for you, for example at a permission prompt, keeps the
 
 *Illustration, not a screenshot.*
 
-The menu bar shows a small ring icon: calm when Wakeloop is not holding the Mac awake, and with a dot orbiting it while it is, with a bold count of working agents beside it. The dropdown lists each project with its sub-agents as an expandable tree, followed by the mode and pause controls.
+The menu bar shows a small ring that sits calm when Wakeloop is not holding the Mac awake and pulses softly (a beating centre with rings spreading outward) while it is, with a bold count of working agents beside it. The dropdown lists each project with its sub-agents as an expandable tree, followed by the mode and pause controls.
 
 ## Quick start
 

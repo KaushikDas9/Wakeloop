@@ -46,10 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
     // Sub-agent rows per project in the current menu; the rows are inserted or removed in place on toggle.
     private var projectRows: [String: (item: NSMenuItem, subs: [NSMenuItem])] = [:]
     private var menuIsOpen = false
-    // The orbiting dot runs only while holding; iconHolding is the state the timer reads.
+    // The breathing icon runs only while holding; iconHolding is the state the timer reads.
     private var iconHolding = false
     private var iconTimer: Timer?
     private var iconStart = Date()
+    // One breathing cycle of the menu bar icon, in seconds.
+    private let iconCycle: TimeInterval = 2.4
     private let canNotify = Bundle.main.bundleIdentifier != nil
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -335,7 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         button.attributedTitle = NSAttributedString(string: count, attributes: [.font: font])
     }
 
-    /// Runs only while holding and not under Reduce Motion; otherwise the dot rests at 12 o'clock.
+    /// Runs only while holding and not under Reduce Motion; otherwise the icon rests in its still state.
     private func updateIconTimer() {
         let animate = iconHolding && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if animate {
@@ -357,7 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
 
     private func iconPhase() -> CGFloat {
         guard iconHolding, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return 0 }
-        return CGFloat(Date().timeIntervalSince(iconStart).truncatingRemainder(dividingBy: 1.8) / 1.8)
+        return CGFloat(Date().timeIntervalSince(iconStart).truncatingRemainder(dividingBy: iconCycle) / iconCycle)
     }
 
     /// Grey subtitle on macOS 14.4+; older systems show the tooltip instead.
