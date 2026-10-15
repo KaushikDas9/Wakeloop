@@ -13,6 +13,15 @@ public final class HookServer {
 
     private let listener: NWListener
     private let handler: (Message) -> Void
+    private let stateLock = NSLock()
+    private var listening = false
+
+    /// True once the listener is bound to the port and accepting connections.
+    public var isListening: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return listening
+    }
 
     public init(port: UInt16 = wakeloopPort, handler: @escaping (Message) -> Void) throws {
         let params = NWParameters.tcp
@@ -22,6 +31,14 @@ public final class HookServer {
     }
 
     public func start() {
+        listener.stateUpdateHandler = { [weak self] state in
+            guard let self else { return }
+            var ready = false
+            if case .ready = state { ready = true }
+            self.stateLock.lock()
+            self.listening = ready
+            self.stateLock.unlock()
+        }
         listener.newConnectionHandler = { [weak self] conn in self?.serve(conn) }
         listener.start(queue: .global())
     }

@@ -6,7 +6,7 @@ import WakeloopCore
 
 enum Mode: String { case auto, on, off }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHost {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHost, SetupGuideHost {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let power = PowerManager()
     private var tracker = SessionTracker()
@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
     private let hookInstaller = HookInstaller()
     // Result of the last read of ~/.claude/settings.json, taken on each refresh.
     private(set) var claudeHooks: Result<HookInstaller.Status, Error> = .success(.notInstalled)
+    private lazy var setupGuide = SetupGuideWindowController(host: self)
     private let lid = LidManager()
     private var lidFailed = false
     // Whether the sudoers rule is installed; checked at launch and after setup or removal (spawns sudo).
@@ -82,6 +83,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
             NSLog("Wakeloop: cannot start hook server: \(error)")
         }
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refresh() }
+        // The setup guide opens once, on first launch. Settings, "Show setup guide…" reopens it.
+        if !defaults.bool(forKey: "setupGuideShown") {
+            defaults.set(true, forKey: "setupGuideShown")
+            showSetupGuide()
+        }
+    }
+
+    // MARK: - Setup guide host
+
+    var hookServerListening: Bool { server?.isListening ?? false }
+
+    /// Set by the first Claude Code hook event. Any agent event that reaches the hook server counts.
+    var claudeConnected: Bool { defaults.bool(forKey: "claudeEventSeen") }
+
+    func readClaudeHooks() -> Result<HookInstaller.Status, Error> {
+        Result { try hookInstaller.status() }
+    }
+
+    func openLidWindow() {
+        lidWindow.show()
+    }
+
+    @objc private func showSetupGuide() {
+        setupGuide.show()
     }
 
     private func handle(_ msg: HookServer.Message) {
@@ -90,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         case .event(let session, let event, let cwd, let transcript):
             tracker.apply(event, session: session, cwd: cwd, transcript: transcript)
             holdCap.activity()
+            defaults.set(true, forKey: "claudeEventSeen")
         case .hold(let secs): manualUntil = Date().addingTimeInterval(secs)
         case .done: manualUntil = nil
         }
@@ -309,7 +335,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
     }
 
     @objc private func showLidWindow() {
-        lidWindow.show()
+        openLidWindow()
     }
 
     @objc private func showWhy() {
@@ -463,7 +489,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         let busyChildren = ProcessTree.busyAgentDescendants(ProcessTree.snapshot())
         let transcripts = SessionFiles.recentlyActive(SessionFiles.scan())
         lock.lock()
-        claudeHooks = Result { try hookInstaller.status() }
+        claudeHooks = readClaudeHooks()
         let lastWrite: (String) -> Date? = { path in
             (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
         }
@@ -620,6 +646,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
              fallback: "When Claude (or another agent) stops to ask you something, Wakeloop keeps your Mac awake this long. If you do not answer in time, your Mac is allowed to sleep.")
 
         let settingsMenu = NSMenu()
+        let guideItem = NSMenuItem(title: "Show setup guide…", action: #selector(showSetupGuide), keyEquivalent: "")
+        guideItem.target = self
+        settingsMenu.addItem(guideItem)
+        settingsMenu.addItem(.separator())
         settingsMenu.addItem(graceItem)
 
         let maxHoldMenu = NSMenu()

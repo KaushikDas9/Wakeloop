@@ -77,12 +77,15 @@ Prefer to do it by hand? Print the config and merge it into your settings yourse
 wakeloop hook-snippet claude
 ```
 
+The first time you open Wakeloop, a short setup guide opens. It covers the hooks, optional lid-closed mode, and a check that Claude Code can reach Wakeloop. Reopen it any time from **Settings > Show setup guide…**.
+
 The `wakeloop` CLI is inside the app at `Wakeloop.app/Contents/Resources/bin/wakeloop`. The app must be running for the CLI to work.
 
 ## Features
 
 - Claude Code is the only supported agent for now.
 - One-click Claude Code hook setup in Settings, with Remove. Keeps your other hooks and backs up the settings file first.
+- First-run setup guide with live status: the hooks, optional lid-closed setup, and a "Connected" check that turns green after your first Claude Code prompt. It opens once and can be reopened from Settings.
 - Holds the Mac awake while a Claude Code session is working. In Auto mode it also keeps holding while a child process of the agent is busy, such as a long build or test run.
 - Counts working agents in the menu bar, with project names and sub-agents listed under each project.
 - Falls back to watching recently written session transcript files if the hooks are missing.
@@ -124,7 +127,7 @@ Wakeloop is an early pre-release (v0.1.0).
 
 - **Agents:** Claude Code only. Codex detection is in place but has not been live-tested, so it is not supported yet.
 - **Live-tested on the author's Mac:** building and launching the app, the hook server, Claude Code hooks, the working-agent count, project names, sub-agent tracking, the menu, modes, lid-closed setup, and lid-closed mode on the charger.
-- **Not yet live-tested:** the in-app hook setup and removal, the "Sleep after" timeout, the max hold and crashed-session expiry, the battery guard, launch at login, the global shortcuts, lid-closed mode on battery, and process-tree behaviour (keeping the Mac awake while a child process runs).
+- **Not yet live-tested:** the in-app hook setup and removal, the setup guide, the "Sleep after" timeout, the max hold and crashed-session expiry, the battery guard, launch at login, the global shortcuts, lid-closed mode on battery, and process-tree behaviour (keeping the Mac awake while a child process runs).
 - The unit tests run with `swift test`.
 
 ## Support
