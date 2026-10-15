@@ -169,6 +169,10 @@ Wakeloop is free and open source under the MIT License.
 - `main` is the stable branch. `dev` is for new work.
 - The first version is tagged `v0.1.0`, a pre-release.
 
+## Website
+
+A static landing page lives in [`site/`](site/README.md). It is not deployed yet.
+
 ## License
 
 [MIT](LICENSE).
