@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Wakeloop app icon: a ring with a bead orbiting it and a solid core">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a3756"/>
+      <stop offset="1" stop-color="#0f1628"/>
+    </linearGradient>
+  </defs>
+  <!-- macOS icon body: 824 pt square on a 1024 canvas, 100 pt margin -->
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#body)"/>
+  <!-- Ring: the idle menu bar mark, scaled up -->
+  <circle cx="512" cy="512" r="262" fill="none" stroke="#e6edf7" stroke-width="80"/>
+  <!-- Orbiting bead on the ring, upper right -->
+  <circle cx="697.3" cy="326.7" r="60" fill="#5eead4"/>
+  <!-- Core: the beat at the centre -->
+  <circle cx="512" cy="512" r="112" fill="#ffffff"/>
+</svg>
