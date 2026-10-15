@@ -58,7 +58,7 @@ open dist/Wakeloop.app
 
 ### Opening the app for the first time
 
-Builds made by `scripts/build-app.sh` are ad-hoc signed and **not notarized by Apple**. Prebuilt builds, if you get one, are not notarized either. macOS will block the first launch. To allow it:
+Builds made by `scripts/build-app.sh` are ad-hoc signed and **not notarized by Apple**. An app you build on your own Mac is not quarantined, so it normally opens without a warning. A prebuilt copy you download is quarantined, and macOS will block its first launch. To allow it:
 
 - Right-click (or Control-click) `Wakeloop.app`, choose **Open**, then click **Open** in the dialog; or
 - Try to open it, then go to **System Settings > Privacy & Security**, find the message about Wakeloop, and click **Open Anyway**.
@@ -168,6 +168,10 @@ Wakeloop is free and open source under the MIT License.
 
 - `main` is the stable branch. `dev` is for new work.
 - The first version is tagged `v0.1.0`, a pre-release.
+
+## Website
+
+A static landing page lives in [`site/`](site/README.md). It is not deployed yet.
 
 ## License
 

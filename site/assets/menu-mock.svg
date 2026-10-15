@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 470" width="440" height="470" role="img" aria-label="Illustration of the Wakeloop menu bar icon with a 3 count and the dropdown with three working agents">
+  <!-- Menu bar strip -->
+  <rect x="0" y="0" width="440" height="30" rx="8" fill="#1c1d21"/>
+  <!-- Menu bar icon: holding state (soft rings, solid core) -->
+  <circle cx="392" cy="15" r="9.5" fill="none" stroke="#f4f4f5" stroke-opacity="0.35" stroke-width="1.5"/>
+  <circle cx="392" cy="15" r="6" fill="none" stroke="#f4f4f5" stroke-width="1.8"/>
+  <circle cx="392" cy="15" r="2.6" fill="#f4f4f5"/>
+  <text x="404" y="20" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#f4f4f5">3</text>
+
+  <!-- Dropdown panel -->
+  <rect x="170" y="34" width="260" height="356" rx="10" fill="#2b2d33"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="13" fill="#e4e4e7">
+    <text x="186" y="60" font-weight="600">Awake: 3 agents working</text>
+    <text x="186" y="86" font-size="12" fill="#a1a1aa" font-weight="600">Working now (3)</text>
+
+    <!-- Project row with disclosure triangle, expanded -->
+    <path d="M 186 104 L 196 104 L 191 110 z" fill="#d4d4d8"/>
+    <text x="204" y="112" font-weight="600">Wakeloop <tspan fill="#a1a1aa" font-weight="400">(working, 2 subagents)</tspan></text>
+    <text x="204" y="134" fill="#d4d4d8">├ Explore</text>
+    <text x="204" y="154" fill="#d4d4d8">└ Plan</text>
+
+    <text x="186" y="186" font-weight="600">GameDealRader <tspan fill="#a1a1aa" font-weight="400">(working)</tspan></text>
+
+    <line x1="178" y1="204" x2="422" y2="204" stroke="#44464e" stroke-width="1"/>
+
+    <text x="186" y="230">Mode: Auto</text>
+    <path d="M 412 225 L 416 230 L 412 235" fill="none" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="186" y="256">Pause</text>
+    <path d="M 412 251 L 416 256 L 412 261" fill="none" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="186" y="282">Why is my Mac awake…</text>
+
+    <line x1="178" y1="300" x2="422" y2="300" stroke="#44464e" stroke-width="1"/>
+
+    <text x="186" y="326">Settings</text>
+    <path d="M 412 321 L 416 326 L 412 331" fill="none" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <line x1="178" y1="344" x2="422" y2="344" stroke="#44464e" stroke-width="1"/>
+
+    <text x="186" y="370">Quit Wakeloop</text>
+  </g>
+  <text x="220" y="436" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="12" fill="#a1a1aa" text-anchor="middle">Illustration, not a screenshot</text>
+</svg>

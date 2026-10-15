@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wakeloop: keep your Mac awake while Claude Code works</title>
+<meta name="description" content="Wakeloop is a free, open-source macOS menu bar app. It keeps your Mac awake while a Claude Code session is working and lets it sleep when every session is done.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef1f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1628" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://kaushikdas9.github.io/Wakeloop/">
+<link rel="icon" type="image/svg+xml" href="assets/app-icon.svg">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+<!-- Open Graph / Twitter. Crawlers need absolute URLs; update them if the site moves to its own domain. -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kaushikdas9.github.io/Wakeloop/">
+<meta property="og:site_name" content="Wakeloop">
+<meta property="og:title" content="Wakeloop: keep your Mac awake while Claude Code works">
+<meta property="og:description" content="A free, open-source macOS menu bar app. Your Mac stays awake while the agent works and sleeps when it is done.">
+<meta property="og:image" content="https://kaushikdas9.github.io/Wakeloop/assets/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Wakeloop app icon, a ring with an orbiting bead, next to the line: your Mac stays awake until the agent is done.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Wakeloop: keep your Mac awake while Claude Code works">
+<meta name="twitter:description" content="A free, open-source macOS menu bar app. Your Mac stays awake while the agent works and sleeps when it is done.">
+<meta name="twitter:image" content="https://kaushikdas9.github.io/Wakeloop/assets/og.jpg">
+<!-- Analytics: none. If you add any, prefer a cookieless one (Plausible, umami) and say so on the page. -->
+
+<style>
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --ink: #131a2c;
+  --muted: #4a5570;
+  --line: #d3d9e4;
+  --accent: #0b6b63;
+  --accent-ink: #ffffff;
+  --accent-soft: #d5efeb;
+  --warn-bg: #fff4e5;
+  --warn-line: #e3a453;
+  --warn-ink: #5c3604;
+  --tile-top: #2a3756;
+  --tile-bottom: #0f1628;
+  --tile-line: transparent;
+  --ring: #e6edf7;
+  --bead: #5eead4;
+  --core: #ffffff;
+  --code-bg: #131a2c;
+  --code-ink: #e6edf7;
+  --focus: #0b6b63;
+
+  --font-display: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --wrap: 1100px;
+  --gutter: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1628;
+    --surface: #18213a;
+    --ink: #e6edf7;
+    --muted: #a3aec4;
+    --line: #2a3756;
+    --accent: #5eead4;
+    --accent-ink: #0f1628;
+    --accent-soft: #163a3f;
+    --warn-bg: #2d2214;
+    --warn-line: #b7803a;
+    --warn-ink: #f6dcb4;
+    --tile-top: #24304d;
+    --tile-bottom: #141c31;
+    --tile-line: #33416a;
+    --code-bg: #0a1020;
+    --code-ink: #e6edf7;
+    --focus: #5eead4;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 17px/1.6 var(--font-body);
+  overflow-wrap: break-word;
+}
+img, video, svg { max-width: 100%; display: block; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+code, pre { font-family: var(--font-mono); font-size: 0.88em; }
+:not(pre) > code { background: var(--accent-soft); padding: 0.1em 0.35em; border-radius: 4px; }
+
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2.3rem, 5.4vw, 4rem); font-weight: 800; letter-spacing: -0.025em; max-width: 13ch; }
+h2 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); font-weight: 750; max-width: 22ch; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0 0 1em; }
+
+.wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--gutter); }
+@media (min-width: 720px) { :root { --gutter: 32px; } }
+
+.skip { position: absolute; left: -999px; top: 8px; background: var(--surface); padding: 8px 12px; z-index: 10; }
+.skip:focus { left: 8px; }
+
+/* Header */
+.site-header .wrap { display: flex; align-items: center; gap: 24px; min-height: 68px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; color: var(--ink); text-decoration: none; }
+.brand img { width: 32px; height: 32px; }
+.site-nav { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+.site-nav a { color: var(--ink); text-decoration: none; font-size: 0.95rem; }
+.site-nav a:hover { text-decoration: underline; }
+.site-nav .nav-gh { border: 1.5px solid var(--line); padding: 6px 14px; border-radius: 999px; font-weight: 600; }
+@media (max-width: 719px) { .site-nav .nav-anchor { display: none; } }
+
+/* Buttons */
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 28px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 999px; font-weight: 650; text-decoration: none; font-size: 1rem; line-height: 1.2; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-secondary { color: var(--ink); border: 1.5px solid var(--line); background: transparent; }
+.btn-secondary:hover { border-color: var(--muted); }
+
+/* Hero */
+.hero { padding: 40px 0 72px; }
+.hero .wrap { display: grid; gap: 40px; align-items: center; }
+@media (min-width: 880px) { .hero .wrap { grid-template-columns: 1.15fr 0.85fr; gap: 56px; } .hero { padding: 64px 0 104px; } }
+.lede { font-size: 1.2rem; color: var(--muted); max-width: 34em; margin-top: 20px; }
+.fine { font-size: 0.92rem; color: var(--muted); margin-top: 18px; }
+
+.loop { justify-self: start; width: 100%; max-width: 280px; }
+@media (min-width: 880px) { .loop { justify-self: center; max-width: 380px; } }
+.tile {
+  aspect-ratio: 1;
+  border-radius: 22.5%;
+  background: linear-gradient(var(--tile-top), var(--tile-bottom));
+  border: 1px solid var(--tile-line);
+  display: grid; place-items: center;
+  box-shadow: 0 30px 60px -30px rgba(15, 22, 40, 0.55);
+}
+.tile svg { width: 82%; height: auto; overflow: visible; }
+.loop-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 18px; }
+.loop-status { margin: 0; font-size: 0.95rem; color: var(--muted); }
+.loop-status strong { color: var(--ink); }
+.toggle { font: inherit; font-size: 0.9rem; padding: 7px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.toggle:hover { border-color: var(--muted); }
+
+/* Ring animation: mirrors the menu bar icon. Ring, beating core, spreading rings; the bead orbits. */
+.r-ring { fill: none; stroke: var(--ring); stroke-width: 15; transition: opacity .5s; }
+.r-core { fill: var(--core); transform-box: fill-box; transform-origin: center; transition: transform .5s, opacity .5s; animation: beat 2.4s ease-in-out infinite; }
+.r-bead { fill: var(--bead); }
+.r-orbit { transform-origin: 100px 100px; animation: orbit 9s linear infinite; }
+.r-wave { fill: none; stroke: var(--ring); stroke-width: 2; vector-effect: non-scaling-stroke; transform-box: fill-box; transform-origin: center; opacity: 0; animation: spread 2.4s ease-out infinite; }
+.r-wave.two { animation-delay: 1.2s; }
+@keyframes orbit { to { transform: rotate(360deg); } }
+@keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.14); } }
+@keyframes spread {
+  0% { transform: scale(1); opacity: 0; }
+  12% { opacity: 0.7; }
+  100% { transform: scale(2.35); opacity: 0; }
+}
+.loop[data-state="idle"] .r-ring { opacity: 0.55; }
+.loop[data-state="idle"] .r-core { transform: scale(0.2); opacity: 0; animation: none; }
+.loop[data-state="idle"] .r-wave { animation: none; opacity: 0; }
+.loop[data-state="idle"] .r-orbit { animation-play-state: paused; }
+.loop[data-state="idle"] .r-bead { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .r-core, .r-orbit, .r-wave { animation: none !important; }
+  .r-wave { opacity: 0.25; transform: scale(1.6); }
+  .r-wave.two { opacity: 0.12; transform: scale(2.1); }
+  .loop[data-state="idle"] .r-wave { opacity: 0; }
+  .r-ring, .r-core { transition: none; }
+}
+
+.hero .wrap > *, .demo-grid > *, .features > *, .safety-grid > *, .limits > *, .install-grid > *, .steps > li { min-width: 0; }
+
+/* Sections */
+section { scroll-margin-top: 16px; }
+.band { padding: 80px 0; border-top: 1px solid var(--line); }
+.band-alt { background: var(--surface); }
+.section-intro { color: var(--muted); max-width: 40em; margin-top: 14px; font-size: 1.08rem; }
+
+/* Problem */
+.problem p { max-width: 38em; font-size: 1.15rem; }
+.problem p:first-of-type { margin-top: 20px; }
+
+/* Steps */
+.steps { list-style: none; padding: 0; margin: 40px 0 0; display: grid; gap: 32px; counter-reset: step; }
+@media (min-width: 800px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 40px; } }
+.steps li { counter-increment: step; border-top: 2px solid var(--ink); padding-top: 18px; }
+.steps li::before { content: counter(step); font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: var(--accent); display: block; margin-bottom: 6px; }
+.steps h3 { margin-bottom: 8px; }
+.steps p { color: var(--muted); margin: 0; }
+.step-icon { width: 36px; height: 36px; margin-bottom: 12px; color: var(--ink); }
+
+/* Demo */
+.demo-grid { display: grid; gap: 40px; margin-top: 36px; align-items: start; }
+@media (min-width: 880px) { .demo-grid { grid-template-columns: 1.5fr 1fr; } }
+figure { margin: 0; }
+.demo-video { width: 100%; height: auto; border-radius: 14px; background: #0f1628; aspect-ratio: 16 / 9; }
+figcaption { font-size: 0.9rem; color: var(--muted); margin-top: 10px; }
+.menu-mock { max-width: 360px; }
+.demo-copy p { color: var(--muted); }
+
+/* Features */
+.features { display: grid; gap: 40px; margin-top: 40px; }
+@media (min-width: 800px) { .features { grid-template-columns: repeat(3, 1fr); } }
+.features h3 { padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.features ul { list-style: none; margin: 0; padding: 0; }
+.features li { margin-bottom: 14px; color: var(--muted); }
+.features li strong { color: var(--ink); font-weight: 650; display: block; }
+
+/* Safety */
+.safety-grid { display: grid; gap: 48px; margin-top: 40px; }
+@media (min-width: 880px) { .safety-grid { grid-template-columns: 1fr 1fr; } }
+.guards { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 12px 20px; }
+.guards dt { font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; }
+.guards dd { margin: 0; color: var(--muted); }
+.safety-grid h3 { margin-bottom: 16px; }
+.safety-grid p { color: var(--muted); }
+pre {
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 16px 18px; border-radius: 10px; overflow-x: auto; line-height: 1.55; margin: 0 0 1em;
+  max-width: 100%;
+}
+.limits { margin-top: 56px; display: grid; gap: 32px; }
+@media (min-width: 880px) { .limits { grid-template-columns: 1fr 1fr; } }
+.limits h3 { margin-bottom: 12px; }
+.limits ul { margin: 0; padding-left: 1.2em; color: var(--muted); }
+.limits li { margin-bottom: 8px; }
+.limits li strong { color: var(--ink); }
+.warning {
+  background: var(--warn-bg); color: var(--warn-ink);
+  border-left: 4px solid var(--warn-line);
+  padding: 18px 20px; border-radius: 0 10px 10px 0; align-self: start;
+}
+.warning h3 { margin-bottom: 6px; color: inherit; }
+.warning p { margin: 0; }
+
+/* Install */
+.install-grid { display: grid; gap: 40px; margin-top: 36px; }
+@media (min-width: 880px) { .install-grid { grid-template-columns: 1.2fr 1fr; } }
+.install-grid h3 { margin-bottom: 12px; }
+.install-grid p, .install-grid li { color: var(--muted); }
+.install-grid ol { padding-left: 1.2em; margin: 0 0 1em; }
+.install-grid li { margin-bottom: 8px; }
+
+/* FAQ */
+.faq { margin-top: 32px; max-width: 46em; }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq summary {
+  cursor: pointer; list-style: none; padding: 18px 36px 18px 0; position: relative;
+  font-family: var(--font-display); font-weight: 700; font-size: 1.12rem;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: ""; position: absolute; right: 6px; top: 50%; width: 12px; height: 12px; margin-top: -6px;
+  border: 2px solid var(--muted); border-radius: 50%;
+}
+.faq details[open] summary::after { background: var(--accent); border-color: var(--accent); }
+.faq details > div { padding: 0 0 18px; color: var(--muted); }
+.faq details > div p:last-child { margin-bottom: 0; }
+
+/* Final CTA + footer */
+.closing { padding: 88px 0; border-top: 1px solid var(--line); }
+.closing h2 { max-width: 18ch; }
+.site-footer { border-top: 1px solid var(--line); padding: 28px 0 40px; font-size: 0.92rem; color: var(--muted); }
+.site-footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; }
+.site-footer ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.site-footer p { margin: 0; }
+@media (min-width: 720px) { .site-footer nav { margin-left: auto; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Wakeloop, back to top">
+      <img src="assets/app-icon.svg" alt="" width="32" height="32">
+      Wakeloop
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a class="nav-anchor" href="#how">How it works</a>
+      <a class="nav-anchor" href="#safety">Safety</a>
+      <a class="nav-anchor" href="#install">Install</a>
+      <a class="nav-anchor" href="#faq">FAQ</a>
+      <a class="nav-gh" href="https://github.com/KaushikDas9/Wakeloop">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div>
+        <h1 id="hero-title">Your Mac stays awake until the agent is done.</h1>
+        <p class="lede">Wakeloop is a free menu bar app for macOS. It holds off sleep while a Claude Code session is working and lets go when every session is idle. Start a long task, walk away, and come back to finished work.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="https://github.com/KaushikDas9/Wakeloop#build-from-source">Build from source on GitHub</a>
+          <a class="btn btn-secondary" href="https://ko-fi.com/koushikdas">Support on Ko-fi</a>
+        </div>
+        <p class="fine">Open source under MIT. Needs macOS 13 or later. Supports Claude Code today.</p>
+      </div>
+
+      <div class="loop" id="loop" data-state="working">
+        <div class="tile">
+          <svg viewBox="0 0 200 200" role="img" aria-labelledby="loop-label">
+            <title id="loop-label">The Wakeloop mark: a ring with a bead orbiting it. While an agent works, a core beats in the centre and soft rings spread out.</title>
+            <circle class="r-wave" cx="100" cy="100" r="34"/>
+            <circle class="r-wave two" cx="100" cy="100" r="34"/>
+            <circle class="r-ring" cx="100" cy="100" r="62"/>
+            <circle class="r-core" cx="100" cy="100" r="26"/>
+            <g class="r-orbit"><circle class="r-bead" cx="143.8" cy="56.2" r="13"/></g>
+          </svg>
+        </div>
+        <div class="loop-controls">
+          <p class="loop-status" id="loop-status" aria-live="polite"><strong>Awake:</strong> 2 agents working</p>
+          <button class="toggle" id="loop-toggle" type="button" aria-controls="loop" aria-pressed="false" hidden>Show agents finished</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-alt problem" aria-labelledby="problem-title">
+    <div class="wrap">
+      <h2 id="problem-title">A sleeping Mac stalls the agent halfway through.</h2>
+      <p>You start a long refactor in Claude Code and go make dinner. Twenty minutes later the Mac falls asleep and the agent stops mid-task. You come back to half the work.</p>
+      <p>Running <code>caffeinate</code> keeps the Mac up, but it keeps it up after the agent has finished too. Wakeloop holds the Mac awake only while an agent is busy.</p>
+    </div>
+  </section>
+
+  <section class="band" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <h2 id="how-title">How it works</h2>
+      <ol class="steps">
+        <li>
+          <svg class="step-icon" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="13" fill="none" stroke="currentColor" stroke-width="3" opacity=".55"/></svg>
+          <h3>Connect Claude Code</h3>
+          <p>In Settings, choose Set up Claude Code hooks. Wakeloop shows the change, backs up <code>~/.claude/settings.json</code> and adds its own entries. Remove takes them out again.</p>
+        </li>
+        <li>
+          <svg class="step-icon" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="16.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".35"/><circle cx="18" cy="18" r="11.5" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="18" cy="18" r="5" fill="currentColor"/></svg>
+          <h3>The agent works, the Mac stays up</h3>
+          <p>Hooks send a small event to Wakeloop on your own machine when a session starts, gets a prompt, asks for permission or stops. While any session or sub-agent is working, Wakeloop holds a macOS sleep assertion.</p>
+        </li>
+        <li>
+          <svg class="step-icon" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="13" fill="none" stroke="currentColor" stroke-width="3" opacity=".55"/></svg>
+          <h3>Sleep comes back on its own</h3>
+          <p>When every session is idle, Wakeloop releases the assertion and your Mac sleeps on its normal schedule. A session waiting on you stays awake for a grace period first, 5 minutes by default.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="band band-alt" id="demo" aria-labelledby="demo-title">
+    <div class="wrap">
+      <h2 id="demo-title">See which agents are holding your Mac awake</h2>
+      <div class="demo-grid">
+        <figure>
+          <video class="demo-video" id="demo-video" src="assets/wakeloop-demo.mp4" poster="assets/demo-poster.jpg" width="800" height="450" muted loop playsinline controls preload="metadata" aria-describedby="demo-caption">
+            <a href="assets/wakeloop-demo.mp4">Download the demo video</a>
+          </video>
+          <figcaption id="demo-caption">An illustrated demo, not a screen recording. The menu bar ring fills and shows a count while agents work, then goes calm when they finish.</figcaption>
+        </figure>
+        <div class="demo-copy">
+          <p>The ring sits calm while nothing is running. When an agent starts, it fills and a bold count of working agents appears beside it. Open the menu to see each project by name, with its sub-agents listed underneath.</p>
+          <figure>
+            <img class="menu-mock" src="assets/menu-mock.svg" width="440" height="470" alt="Illustration of the Wakeloop menu. The menu bar shows the ring with a count of 3. The dropdown reads Awake: 3 agents working, lists the Wakeloop project with two sub-agents, Explore and Plan, and a second project, then Mode, Pause, Why is my Mac awake, Settings and Quit." loading="lazy">
+          </figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <h2 id="features-title">What you get</h2>
+      <div class="features">
+        <div>
+          <h3>Know what is running</h3>
+          <ul>
+            <li><strong>Working count in the menu bar</strong>The number of busy agents, sub-agents included.</li>
+            <li><strong>Projects and sub-agents</strong>Each project by name, expandable into its sub-agents.</li>
+            <li><strong>Why is my Mac awake</strong>A report of every session, busy process and sleep assertion on the Mac, including ones from other apps.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Stay in control</h3>
+          <ul>
+            <li><strong>Auto, Always on, Off</strong>Auto follows your agents. Always on is for things like Remote Control.</li>
+            <li><strong>Pause</strong>For 30 minutes, an hour or until 6 a.m. Resume whenever you like.</li>
+            <li><strong>Global shortcuts</strong><kbd>Ctrl</kbd>+<kbd>Opt</kbd>+<kbd>Cmd</kbd>+<kbd>P</kbd> pauses. <kbd>Ctrl</kbd>+<kbd>Opt</kbd>+<kbd>Cmd</kbd>+<kbd>M</kbd> cycles the mode.</li>
+            <li><strong>A <code>wakeloop</code> CLI</strong><code>wakeloop hold --for 30m</code> and <code>wakeloop done</code> for scripts and agents.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Set it up once</h3>
+          <ul>
+            <li><strong>One-click hook setup</strong>Keeps your other hooks, saves a backup first and has a Remove button.</li>
+            <li><strong>First-run setup guide</strong>A short checklist that turns green after your first Claude Code prompt.</li>
+            <li><strong>Launch at login</strong>Starts with your Mac and stays in the menu bar.</li>
+            <li><strong>Runs only on your Mac</strong>Hooks talk to 127.0.0.1. There is no account and no telemetry.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-alt" id="safety" aria-labelledby="safety-title">
+    <div class="wrap">
+      <h2 id="safety-title">Built to let your Mac sleep when it should</h2>
+      <p class="section-intro">Keeping a laptop awake has costs. Wakeloop gives the hold back to macOS whenever something looks wrong.</p>
+
+      <div class="safety-grid">
+        <div>
+          <h3>Guards</h3>
+          <dl class="guards">
+            <dt>20%</dt><dd>On battery, sleep is allowed at 20% or lower. The hold returns at 25% or when you plug in.</dd>
+            <dt>Heat</dt><dd>If the Mac runs too hot, sleep is allowed and you get a notification.</dd>
+            <dt>8 h</dt><dd>An automatic hold ends after 8 hours with no agent activity. You can pick 4, 8, 12 hours or off.</dd>
+            <dt>2 h</dt><dd>A session that crashed without saying goodbye is dropped after 2 hours of silence.</dd>
+            <dt>Off</dt><dd>Pause and Off release the hold immediately.</dd>
+          </dl>
+        </div>
+        <div>
+          <h3>Lid-closed mode and root</h3>
+          <p>A normal sleep assertion does not keep a closed MacBook awake. For that, Wakeloop offers an optional lid-closed mode. It is off by default.</p>
+          <p>Turning it on installs one sudoers rule, after macOS asks for your password. The rule allows exactly two commands and nothing else:</p>
+          <pre><code>pmset disablesleep 1
+pmset disablesleep 0</code></pre>
+          <p>The rule is checked with <code>visudo</code> before it is installed. A watchdog runs <code>disablesleep 0</code> if Wakeloop quits or crashes. Lid-closed mode works on the charger only unless you opt in to battery, which stops at 30%. Remove setup deletes the rule.</p>
+        </div>
+      </div>
+
+      <div class="limits">
+        <div>
+          <h3>Limits today</h3>
+          <ul>
+            <li><strong>Claude Code only.</strong> Codex: coming, not yet tested.</li>
+            <li><strong>Builds are not notarized.</strong> A copy you download needs right-click, then Open.</li>
+            <li><strong>Lid-closed on battery has not been live-tested yet.</strong> Lid-closed on the charger has.</li>
+            <li><strong>Early pre-release (v0.1.0).</strong> The <a href="https://github.com/KaushikDas9/Wakeloop#status">status list in the README</a> says what has been tested on a real Mac.</li>
+          </ul>
+        </div>
+        <div class="warning" role="note">
+          <h3>Never put a working Mac in a closed bag</h3>
+          <p>A Mac with its lid closed and an agent running still makes heat. In a bag it has nowhere to go. Leave it open to the air on a hard surface.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <h2 id="install-title">Install</h2>
+      <p class="section-intro">For now you build Wakeloop from source. It takes a minute and needs Swift 5.9 or later (Xcode 15 or a matching toolchain) on macOS 13 or later.</p>
+      <div class="install-grid">
+        <div>
+          <h3>Build from source</h3>
+<pre><code>git clone https://github.com/KaushikDas9/Wakeloop.git
+cd Wakeloop
+scripts/build-app.sh
+open dist/Wakeloop.app</code></pre>
+          <p>Optional: run <code>swift test</code> first. The build script puts an ad-hoc signed app in <code>dist/</code>. Move it to Applications if you want it to stay.</p>
+        </div>
+        <div>
+          <h3>First launch</h3>
+          <ol>
+            <li>An app you built yourself is not quarantined, so it opens normally.</li>
+            <li>A prebuilt copy is not notarized by Apple. Right-click it, choose Open, then Open again. Only do this for a build from a source you trust.</li>
+            <li>In the menu, choose Settings, then Set up Claude Code hooks. The setup guide walks you through it the first time.</li>
+          </ol>
+          <p>A Homebrew tap is prepared but not published yet.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-alt" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <h2 id="faq-title">Questions</h2>
+      <div class="faq">
+        <details>
+          <summary>Will my Mac stay awake with the lid closed?</summary>
+          <div>
+            <p>Not by default. macOS sleeps a closed MacBook even while an app holds a sleep assertion. If you want the agent to keep going with the lid shut, turn on lid-closed mode in Settings. It needs one password prompt to install a narrow sudoers rule, and it works on the charger unless you allow battery.</p>
+          </div>
+        </details>
+        <details>
+          <summary>What happens to my battery?</summary>
+          <div>
+            <p>On battery, Wakeloop lets the Mac sleep at 20% and holds again at 25% or when you plug in. Lid-closed mode stays on the charger unless you choose battery, and then it stops at 30%. The battery path for lid-closed mode has not been tested on a live Mac yet.</p>
+          </div>
+        </details>
+        <details>
+          <summary>Does Wakeloop send any data anywhere?</summary>
+          <div>
+            <p>No. Claude Code hooks post small events to <code>127.0.0.1</code>, which is your own Mac, and Wakeloop makes no network calls of its own. You don't need an account. The source is on GitHub if you want to check.</p>
+          </div>
+        </details>
+        <details>
+          <summary>Which agents does it work with?</summary>
+          <div>
+            <p>Claude Code, including its sub-agents. Codex: coming, not yet tested. The Codex hook setup is in the app, but it has not been tried against a live Codex session, so treat it as unsupported for now.</p>
+          </div>
+        </details>
+        <details>
+          <summary>Why isn't the app notarized?</summary>
+          <div>
+            <p>Notarizing needs a paid Apple Developer membership, which this free project does not have yet. Building from source avoids the issue, because an app you build on your own Mac is not quarantined. If you get a prebuilt copy, right-click it and choose Open the first time.</p>
+          </div>
+        </details>
+        <details>
+          <summary>What if Wakeloop crashes?</summary>
+          <div>
+            <p>macOS drops a sleep assertion when the app that holds it exits, so normal sleep returns. If lid-closed mode was on, a small watchdog notices and runs <code>pmset disablesleep 0</code>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="closing" aria-labelledby="closing-title">
+    <div class="wrap">
+      <h2 id="closing-title">Let the agent finish. Let the Mac rest after.</h2>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://github.com/KaushikDas9/Wakeloop#build-from-source">Build from source on GitHub</a>
+        <a class="btn btn-secondary" href="https://ko-fi.com/koushikdas">Support on Ko-fi</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Wakeloop is free and open source under the <a href="https://github.com/KaushikDas9/Wakeloop/blob/main/LICENSE">MIT License</a>.</p>
+    <nav aria-label="Footer">
+      <ul>
+        <li><a href="https://github.com/KaushikDas9/Wakeloop">GitHub</a></li>
+        <li><a href="https://github.com/KaushikDas9/Wakeloop/issues">Report an issue</a></li>
+        <li><a href="https://ko-fi.com/koushikdas">Ko-fi</a></li>
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var loop = document.getElementById('loop');
+  var btn = document.getElementById('loop-toggle');
+  var status = document.getElementById('loop-status');
+  if (loop && btn && status) {
+    btn.hidden = false;
+    btn.addEventListener('click', function () {
+      var working = loop.getAttribute('data-state') === 'working';
+      loop.setAttribute('data-state', working ? 'idle' : 'working');
+      btn.setAttribute('aria-pressed', working ? 'true' : 'false');
+      btn.textContent = working ? 'Show agents working' : 'Show agents finished';
+      status.innerHTML = working ? '<strong>Idle:</strong> your Mac can sleep' : '<strong>Awake:</strong> 2 agents working';
+    });
+  }
+
+  // Play the demo only while it is on screen, and never on its own when reduced motion is set.
+  var video = document.getElementById('demo-video');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (video && !reduce && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { var p = video.play(); if (p && p.catch) p.catch(function () {}); }
+        else video.pause();
+      });
+    }, { threshold: 0.5 }).observe(video);
+  }
+})();
+</script>
+</body>
+</html>
