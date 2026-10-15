@@ -1,8 +1,8 @@
 # Wakeloop
 
-A macOS menu bar app that keeps your Mac awake while an AI coding agent is working, then lets it sleep.
+A macOS menu bar app that keeps your Mac awake while Claude Code is working, then lets it sleep.
 
-![Wakeloop: keep your Mac awake only while your AI agent is working](assets/hero.svg)
+![Wakeloop: keep your Mac awake only while Claude Code is working](assets/hero.svg)
 
 ![Animated demo: the menu bar goes from ○ to ● 3 while agents work, then back to ○ when they finish](assets/wakeloop-demo.gif)
 
@@ -10,7 +10,7 @@ A macOS menu bar app that keeps your Mac awake while an AI coding agent is worki
 
 ## The problem
 
-You start a long task in Claude Code and walk away. The Mac goes to sleep, and the agent stalls halfway through. The obvious fix is `caffeinate`, but then the Mac stays awake all night after the agent has finished. Wakeloop holds the Mac awake only for as long as an agent is busy.
+You start a long task in Claude Code and walk away. The Mac goes to sleep, and the agent stalls halfway through. The obvious fix is `caffeinate`, but then the Mac stays awake all night after the agent has finished. Wakeloop holds the Mac awake only for as long as Claude Code is busy.
 
 ## How it works
 
@@ -59,7 +59,7 @@ Requires macOS 13 or later and Swift 5.9 or later.
 
 ## Features
 
-- Holds the Mac awake while a Claude Code or Codex session is working, and keeps holding while an agent's child process is busy, such as a long build or test run.
+- Holds the Mac awake while a Claude Code session is working, and keeps holding while an agent's child process is busy, such as a long build or test run. Other agents (Codex, Antigravity, Cursor and so on) are not supported yet.
 - Falls back to watching session transcript files if the hooks are missing.
 - Modes: Auto, Always on, Off.
 - Pause for 30 minutes, 1 hour, or until tomorrow.
@@ -92,8 +92,9 @@ Charger only is the default because lid-closed mode works only while the charger
 
 Wakeloop is an early prototype.
 
-- Live-tested on the author's Mac: building and launching the app, the hook server, Claude Code hooks, the working-agent count, project names, and sub-agent tracking.
-- Not yet live-tested: Codex hooks, lid-closed mode, the battery guard, launch at login, and process-tree behaviour (keeping the Mac awake while a child process runs).
+- Live-tested on the author's Mac: building and launching the app, the hook server, Claude Code hooks, the working-agent count, project names, sub-agent tracking, the menu, modes, lid-closed setup, and lid-closed mode on the charger.
+- Not yet live-tested: the waiting-for-you timeout, the battery guard, launch at login, the global shortcuts, lid-closed mode on battery, and process-tree behaviour (keeping the Mac awake while a child process runs).
+- Only Claude Code is supported for now.
 
 The unit tests pass.
 

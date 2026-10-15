@@ -8,7 +8,7 @@
   <rect x="0" y="0" width="900" height="240" rx="18" fill="url(#bg)"/>
   <text x="60" y="108" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#ffffff">Wakeloop</text>
   <text x="60" y="150" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="22" fill="#e2e8f0">Keep your Mac awake only while your AI agent is working.</text>
-  <text x="60" y="196" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="20" fill="#cbd5e1">macOS menu bar app for Claude Code and Codex</text>
+  <text x="60" y="196" font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="20" fill="#cbd5e1">macOS menu bar app for Claude Code</text>
   <g font-family="-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" text-anchor="middle">
     <circle cx="700" cy="120" r="40" fill="none" stroke="#e2e8f0" stroke-width="5"/>
     <text x="700" y="133" font-size="50" fill="#e2e8f0">○</text>
