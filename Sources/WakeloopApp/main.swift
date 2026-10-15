@@ -46,6 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
     // Sub-agent rows per project in the current menu; the rows are inserted or removed in place on toggle.
     private var projectRows: [String: (item: NSMenuItem, subs: [NSMenuItem])] = [:]
     private var menuIsOpen = false
+    // The orbiting dot runs only while holding; iconHolding is the state the timer reads.
+    private var iconHolding = false
+    private var iconTimer: Timer?
+    private var iconStart = Date()
     private let canNotify = Bundle.main.bundleIdentifier != nil
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -321,21 +325,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         guard let button = statusItem.button else { return }
         button.toolTip = nil
         button.setAccessibilityLabel("Wakeloop")
-        let workingCount = hold ? workingCount : 0   // a count beside an empty cup would mislead
+        let workingCount = hold ? workingCount : 0   // a count beside the idle ring (sleep allowed) would mislead
         let count = workingCount > 0 ? " \(workingCount)" : ""
-        let symbolName = hold ? "cup.and.saucer.fill" : "cup.and.saucer"
-        guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Wakeloop") else {
-            button.image = nil
-            button.imagePosition = .noImage
-            button.attributedTitle = NSAttributedString(string: (workingCount > 0 ? "\(workingCount) " : "") + "Wakeloop")
-            return
-        }
-        let image = symbol.withSymbolConfiguration(NSImage.SymbolConfiguration(scale: .medium)) ?? symbol
-        image.isTemplate = true
-        button.image = image
+        iconHolding = hold
+        updateIconTimer()
+        button.image = StatusIcon.image(holding: hold, phase: iconPhase())
         button.imagePosition = count.isEmpty ? .imageOnly : .imageLeft
         let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .bold)
         button.attributedTitle = NSAttributedString(string: count, attributes: [.font: font])
+    }
+
+    /// Runs only while holding and not under Reduce Motion; otherwise the dot rests at 12 o'clock.
+    private func updateIconTimer() {
+        let animate = iconHolding && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if animate {
+            guard iconTimer == nil else { return }
+            iconStart = Date()
+            let timer = Timer(timeInterval: 0.083, repeats: true) { [weak self] _ in self?.tickIcon() }
+            RunLoop.main.add(timer, forMode: .common)
+            iconTimer = timer
+        } else {
+            iconTimer?.invalidate()
+            iconTimer = nil
+        }
+    }
+
+    private func tickIcon() {
+        guard iconHolding else { return }
+        statusItem.button?.image = StatusIcon.image(holding: true, phase: iconPhase())
+    }
+
+    private func iconPhase() -> CGFloat {
+        guard iconHolding, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return 0 }
+        return CGFloat(Date().timeIntervalSince(iconStart).truncatingRemainder(dividingBy: 1.8) / 1.8)
     }
 
     /// Grey subtitle on macOS 14.4+; older systems show the tooltip instead.
