@@ -33,6 +33,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
     private var whyWindow: NSWindow?
     private var whyText: NSTextView?
     private lazy var lidWindow = LidWindowController(host: self)
+    private let hookInstaller = HookInstaller()
+    // Result of the last read of ~/.claude/settings.json, taken on each refresh.
+    private(set) var claudeHooks: Result<HookInstaller.Status, Error> = .success(.notInstalled)
     private let lid = LidManager()
     private var lidFailed = false
     // Whether the sudoers rule is installed; checked at launch and after setup or removal (spawns sudo).
@@ -130,12 +133,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         return alert.runModal() == .alertFirstButtonReturn
     }
 
-    private func showError(_ text: String) {
+    func inform(_ title: String, _ detail: String = "") {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Wakeloop"
-        alert.informativeText = text
+        alert.messageText = title
+        alert.informativeText = detail
         alert.runModal()
+    }
+
+    private func showError(_ text: String) {
+        inform("Wakeloop", text)
+    }
+
+    /// Confirms, then merges Wakeloop's hooks into ~/.claude/settings.json. Returns true when they are in place.
+    @discardableResult
+    func setupClaudeHooks() -> Bool {
+        guard confirm("Set up Claude Code hooks",
+                      "Wakeloop will add its hooks to \(HookInstaller.defaultSettingsURL.path) for these events: \(HookSnippet.claudeEvents.joined(separator: ", ")).\n\nYour other hooks and settings stay as they are. Wakeloop saves a backup of the file next to it first.",
+                      button: "Set up") else { return false }
+        defer { refresh() }
+        do {
+            switch try hookInstaller.install() {
+            case .changed(let backup):
+                inform("Claude Code hooks are set up.", backup.map { "A backup was saved as \($0.lastPathComponent)." } ?? "")
+            case .unchanged:
+                inform("Claude Code hooks are already set up.")
+            }
+            return true
+        } catch {
+            showError(error.localizedDescription)
+            return false
+        }
+    }
+
+    /// Confirms, then removes only Wakeloop's hook entries. Returns true when none are left.
+    @discardableResult
+    func removeClaudeHooks() -> Bool {
+        guard confirm("Remove Claude Code hooks",
+                      "Wakeloop will remove its hook entries from \(HookInstaller.defaultSettingsURL.path). Your other hooks stay as they are. Wakeloop saves a backup of the file first.\n\nWithout the hooks, Wakeloop still watches transcripts and busy processes, but it sees Claude Code sessions later and less reliably.",
+                      button: "Remove") else { return false }
+        defer { refresh() }
+        do {
+            switch try hookInstaller.remove() {
+            case .changed(let backup):
+                inform("Claude Code hooks are removed.", backup.map { "A backup was saved as \($0.lastPathComponent)." } ?? "")
+            case .unchanged:
+                inform("No Wakeloop hooks were found.")
+            }
+            return true
+        } catch {
+            showError(error.localizedDescription)
+            return false
+        }
+    }
+
+    @objc private func toggleClaudeHooks() {
+        if case .success(.installed) = claudeHooks {
+            removeClaudeHooks()
+        } else {
+            setupClaudeHooks()
+        }
+    }
+
+    private var claudeHookSubtitle: String {
+        switch claudeHooks {
+        case .success(.installed): return "Installed"
+        case .success(.partial(let installed, let total)): return "Partly installed (\(installed) of \(total))"
+        case .success(.notInstalled): return "Not installed"
+        case .failure: return "Settings file needs attention"
+        }
     }
 
     func setupLid() {
@@ -397,6 +463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         let busyChildren = ProcessTree.busyAgentDescendants(ProcessTree.snapshot())
         let transcripts = SessionFiles.recentlyActive(SessionFiles.scan())
         lock.lock()
+        claudeHooks = Result { try hookInstaller.status() }
         let lastWrite: (String) -> Date? = { path in
             (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
         }
@@ -569,6 +636,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         hint(maxHoldItem, subtitle: "Releases a hold no agent has touched for a long time",
              fallback: "Releases the Mac's hold when no agent event or transcript write has come for this long, so a stuck agent cannot keep the Mac awake all night. A new agent event brings the hold back.")
         settingsMenu.addItem(maxHoldItem)
+
+        let hooksInstalled: Bool = { if case .success(.installed) = claudeHooks { return true } else { return false } }()
+        let hooksItem = NSMenuItem(title: hooksInstalled ? "Remove Claude Code hooks…" : "Set up Claude Code hooks…",
+                                   action: #selector(toggleClaudeHooks), keyEquivalent: "")
+        hooksItem.target = self
+        hint(hooksItem, subtitle: claudeHookSubtitle,
+             fallback: "Adds Wakeloop's hooks to ~/.claude/settings.json and keeps your other hooks. Remove them the same way.")
+        settingsMenu.addItem(hooksItem)
 
         let login = NSMenuItem(title: "Launch at login", action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self

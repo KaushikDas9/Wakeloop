@@ -40,13 +40,8 @@ case "lid-setup":
     """)
 case "hook-snippet":
     // Prints a hooks config for the agent; it never edits the agent's own config files.
-    let cmd = "curl -s -m 2 -X POST --data-binary @- http://127.0.0.1:\(wakeloopPort)/event >/dev/null || true"
-    guard args.count > 1, ["claude", "codex"].contains(args[1]) else { print("usage: wakeloop hook-snippet claude|codex"); exit(2) }
-    // Codex has no Notification event but has Interrupt; Claude Code is the reverse.
-    let events = ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "SessionEnd"]
-        + (args[1] == "codex" ? ["Interrupt"] : ["Notification", "SubagentStart", "SubagentStop"])
-    let entries = events.map { "    \"\($0)\": [{ \"hooks\": [{ \"type\": \"command\", \"command\": \"\(cmd)\", \"timeout\": 5 }] }]" }
-    print("{\n  \"hooks\": {\n" + entries.joined(separator: ",\n") + "\n  }\n}")
+    guard args.count > 1, let json = HookSnippet.json(for: args[1]) else { print("usage: wakeloop hook-snippet claude|codex"); exit(2) }
+    print(json)
 default:
     print("usage: wakeloop hold [--for 30m] | wakeloop done | wakeloop hook-snippet claude|codex | wakeloop lid-setup")
     exit(2)
