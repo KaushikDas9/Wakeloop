@@ -318,16 +318,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
     }
 
     private func setStatusTitle(hold: Bool, workingCount: Int) {
-        let size = NSFont.menuBarFont(ofSize: 0).pointSize
-        let regular = NSFont.systemFont(ofSize: size)
-        let bold = NSFont.boldSystemFont(ofSize: size)
-        let title = NSMutableAttributedString(string: hold ? "● " : "○ ", attributes: [.font: regular])
-        if hold && workingCount > 0 {
-            title.append(NSAttributedString(string: "\(workingCount)", attributes: [.font: bold]))
-            title.append(NSAttributedString(string: " ", attributes: [.font: regular]))
+        guard let button = statusItem.button else { return }
+        button.toolTip = nil
+        button.setAccessibilityLabel("Wakeloop")
+        let workingCount = hold ? workingCount : 0   // a count beside an empty cup would mislead
+        let count = workingCount > 0 ? " \(workingCount)" : ""
+        let symbolName = hold ? "cup.and.saucer.fill" : "cup.and.saucer"
+        guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Wakeloop") else {
+            button.image = nil
+            button.imagePosition = .noImage
+            button.attributedTitle = NSAttributedString(string: (workingCount > 0 ? "\(workingCount) " : "") + "Wakeloop")
+            return
         }
-        title.append(NSAttributedString(string: "Wakeloop", attributes: [.font: regular]))
-        statusItem.button?.attributedTitle = title
+        let image = symbol.withSymbolConfiguration(NSImage.SymbolConfiguration(scale: .medium)) ?? symbol
+        image.isTemplate = true
+        button.image = image
+        button.imagePosition = count.isEmpty ? .imageOnly : .imageLeft
+        let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .bold)
+        button.attributedTitle = NSAttributedString(string: count, attributes: [.font: font])
+    }
+
+    /// Grey subtitle on macOS 14.4+; older systems show the tooltip instead.
+    private func hint(_ item: NSMenuItem, subtitle: String, fallback: String) {
+        if #available(macOS 14.4, *) { item.subtitle = subtitle } else { item.toolTip = fallback }
     }
 
     private func refresh() {
@@ -426,10 +439,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         menu.addItem(.separator())
 
         let modeMenu = NSMenu()
-        for (title, m) in [("Auto", Mode.auto), ("Always on (e.g. Remote Control)", .on), ("Off", .off)] {
-            let item = NSMenuItem(title: title, action: #selector(setMode(_:)), keyEquivalent: "")
-            item.target = self; item.representedObject = m.rawValue
-            item.state = mode == m ? .on : .off
+        let modes: [(title: String, mode: Mode)] = [
+            ("Auto", .auto),
+            ("Always on (e.g. Remote Control)", .on),
+            ("Off", .off),
+        ]
+        for m in modes {
+            let item = NSMenuItem(title: m.title, action: #selector(setMode(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = m.mode.rawValue
+            item.state = mode == m.mode ? .on : .off
+            if m.mode == .on {
+                hint(item, subtitle: "Keeps your Mac awake until you change it",
+                     fallback: "Keeps your Mac awake all the time until you change this. Use it so Remote Control keeps working.")
+            }
             modeMenu.addItem(item)
         }
         modeMenu.addItem(.separator())
@@ -461,14 +483,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         menu.addItem(.separator())
 
         let graceMenu = NSMenu()
+        graceMenu.addItem(withTitle: "When an agent is waiting for you, sleep after:", action: nil, keyEquivalent: "")
+        graceMenu.addItem(.separator())
         for mins in [1, 5, 10, 15, 30] {
             let item = NSMenuItem(title: "\(mins) min", action: #selector(setGrace(_:)), keyEquivalent: "")
             item.target = self; item.tag = mins
             item.state = graceMinutes == mins ? .on : .off
             graceMenu.addItem(item)
         }
-        let graceItem = NSMenuItem(title: "Waiting-for-you grace", action: nil, keyEquivalent: "")
+        let graceItem = NSMenuItem(title: "Sleep after: \(graceMinutes) min", action: nil, keyEquivalent: "")
         graceItem.submenu = graceMenu
+        hint(graceItem, subtitle: "When an agent is waiting for you",
+             fallback: "When Claude (or another agent) stops to ask you something, Wakeloop keeps your Mac awake this long. If you do not answer in time, your Mac is allowed to sleep.")
 
         let settingsMenu = NSMenu()
         settingsMenu.addItem(graceItem)
@@ -478,6 +504,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, LidHos
         settingsMenu.addItem(login)
         let lidItem = NSMenuItem(title: "Lid-closed mode…", action: #selector(showLidWindow), keyEquivalent: "")
         lidItem.target = self
+        hint(lidItem, subtitle: "Keep your Mac awake with the lid closed",
+             fallback: "Keeps your Mac awake with the lid closed while an agent works. Needs a one-time setup.")
         settingsMenu.addItem(lidItem)
         let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
         settingsItem.submenu = settingsMenu

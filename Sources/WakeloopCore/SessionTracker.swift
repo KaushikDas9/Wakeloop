@@ -134,7 +134,7 @@ public struct SessionTracker {
     public func reason(at now: Date = Date()) -> String {
         let working = workingCount
         if working > 0 { return "\(working) agent(s) working" }
-        if shouldHold(at: now) { return "Waiting for you (grace period)" }
+        if shouldHold(at: now) { return "Waiting for you (will sleep soon)" }
         return "No active work"
     }
 }

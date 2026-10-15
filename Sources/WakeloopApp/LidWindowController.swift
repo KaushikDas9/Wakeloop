@@ -24,6 +24,8 @@ final class LidWindowController: NSObject {
     private let removeButton = NSButton(title: "Remove setup…", target: nil, action: nil)
     private var notSetUpRows: [NSView] = []
     private var setUpRows: [NSView] = []
+    private var helpTexts: [NSButton: String] = [:]
+    private let popover = NSPopover()
 
     init(host: LidHost) {
         self.host = host
@@ -36,7 +38,10 @@ final class LidWindowController: NSObject {
         explain.preferredMaxLayoutWidth = 340
         let powerLabel = NSTextField(labelWithString: "Power source")
         powerLabel.textColor = .secondaryLabelColor
-        let power = NSStackView(views: [powerLabel, chargerOnly, withBattery])
+        let power = NSStackView(views: [
+            row([powerLabel, help("Charger only: works only while the charger is connected. Charger or battery: also works on battery and stops at 30% to protect your battery.")]),
+            chargerOnly, withBattery,
+        ])
         power.orientation = .vertical
         power.alignment = .leading
         power.spacing = 6
@@ -52,16 +57,21 @@ final class LidWindowController: NSObject {
         withBattery.action = #selector(choosePower(_:))
         removeButton.action = #selector(remove)
 
+        let setUpRow = row([setUpButton, help("Asks for your Mac password once so Wakeloop can turn sleep prevention on and off.")])
+        let keepAwakeRow = row([keepAwake, help("Keeps your Mac awake with the lid closed while an agent works. Needs a one-time setup.")])
+        let removeRow = row([removeButton, help("Removes the permission so Wakeloop can no longer do this.")])
+
         root.orientation = .vertical
         root.alignment = .leading
         root.spacing = 10
         root.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
-        for view in [statusLabel, explain, setUpButton, keepAwake, power, caption, removeButton] {
+        for view in [statusLabel, explain, setUpRow, keepAwakeRow, power, caption, removeRow] {
             root.addArrangedSubview(view)
         }
-        notSetUpRows = [setUpButton]
-        setUpRows = [keepAwake, power, caption, removeButton]
+        notSetUpRows = [setUpRow]
+        setUpRows = [keepAwakeRow, power, caption, removeRow]
 
+        popover.behavior = .transient
         window.title = "Lid-closed mode"
         window.isReleasedWhenClosed = false
         window.contentView = root
@@ -86,6 +96,43 @@ final class LidWindowController: NSObject {
         chargerOnly.isEnabled = enabled
         withBattery.isEnabled = enabled
         window.setContentSize(NSSize(width: 380, height: root.fittingSize.height))
+    }
+
+    private func row(_ views: [NSView]) -> NSStackView {
+        let stack = NSStackView(views: views)
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 6
+        return stack
+    }
+
+    /// Standard round help button. Its text is shown in a popover when clicked.
+    private func help(_ text: String) -> NSButton {
+        let button = NSButton(title: "", target: self, action: #selector(showHelp(_:)))
+        button.bezelStyle = .helpButton
+        helpTexts[button] = text
+        return button
+    }
+
+    @objc private func showHelp(_ sender: NSButton) {
+        guard let text = helpTexts[sender] else { return }
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = .systemFont(ofSize: 12)
+        label.preferredMaxLayoutWidth = 260
+        label.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView()
+        container.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+            label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+        ])
+        container.frame = NSRect(origin: .zero, size: container.fittingSize)
+        let controller = NSViewController()
+        controller.view = container
+        popover.contentViewController = controller
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
     }
 
     @objc private func setUp() {

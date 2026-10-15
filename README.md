@@ -20,7 +20,7 @@ You start a long task in Claude Code and walk away. The Mac goes to sleep, and t
 2. Wakeloop keeps a table of sessions, each one working, waiting or idle. Sub-agents count as workers.
 3. While anything is working, Wakeloop holds a macOS sleep assertion. When every session is idle, it releases the assertion and the Mac can sleep.
 
-A session that is waiting for you keeps the Mac awake for a grace period (5 minutes by default). Guards always win: low battery, a hot Mac, or a pause releases the hold.
+A session that is waiting for you, for example at a permission prompt, keeps the Mac awake for a few minutes (5 by default; change it under Settings, "Sleep after"). Guards always win: low battery, a hot Mac, or a pause releases the hold.
 
 ## What you see
 
@@ -28,7 +28,7 @@ A session that is waiting for you keeps the Mac awake for a grace period (5 minu
 
 *Illustration, not a screenshot.*
 
-The menu bar shows `○` when nothing is holding the Mac awake and `●` when Wakeloop is holding it, with a count of working agents, for example `● 2 Wakeloop`. The dropdown lists each project with its sub-agents as an expandable tree, followed by the mode and pause controls.
+The menu bar shows a coffee cup icon, empty when Wakeloop is not holding the Mac awake and filled when it is, with a bold count of working agents beside it. The dropdown lists each project with its sub-agents as an expandable tree, followed by the mode and pause controls.
 
 ## Quick start
 
