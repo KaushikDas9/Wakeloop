@@ -2,7 +2,7 @@
 
 A static, dependency-free landing page: `index.html` plus `assets/`. There is no build step. Open `index.html` in a browser to preview it.
 
-It is not deployed yet. Two free ways to publish it:
+It is deployed with GitHub Pages at https://kaushikdas9.github.io/Wakeloop/ by `.github/workflows/pages.yml` on every push to `main` that changes `site/`. Other free ways to publish it:
 
 ## GitHub Pages (with a workflow)
 
@@ -43,7 +43,7 @@ It is not deployed yet. Two free ways to publish it:
 2. Leave the build command empty and set the output directory to `site`.
 3. Deploy. You get a `*.pages.dev` address, and you can add your own domain later.
 
-## After you have a URL
+## If you move to your own domain
 
 - In `index.html`, replace the canonical placeholder comment with `<link rel="canonical" href="https://YOUR-DOMAIN/">`.
 - Change `og:image` and `twitter:image` to absolute URLs (`https://YOUR-DOMAIN/assets/og.jpg`) and add `og:url`. Most link previews ignore relative image paths.
